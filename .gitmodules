@@ -7,3 +7,6 @@
 [submodule "src/SIBR_viewers"]
 	path = src/SIBR_viewers
 	url = https://gitlab.inria.fr/sibr/sibr_core.git
+[submodule "src/ImNodeEditor"]
+	path = src/ImNodeEditor
+	url = http://git.krangingvalve.xyz/jeremyfff/ImNodeEditor.git
