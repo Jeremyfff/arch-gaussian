@@ -1,0 +1,9 @@
+[submodule "src/submodules/simple-knn"]
+	path = src/submodules/simple-knn
+	url = https://gitlab.inria.fr/bkerbl/simple-knn.git
+[submodule "src/submodules/diff-gaussian-rasterization"]
+	path = src/submodules/diff-gaussian-rasterization
+	url = https://github.com/graphdeco-inria/diff-gaussian-rasterization
+[submodule "src/SIBR_viewers"]
+	path = src/SIBR_viewers
+	url = https://gitlab.inria.fr/sibr/sibr_core.git
