@@ -2,7 +2,7 @@ import cv2
 import os
 import shutil
 from tqdm.auto import tqdm
-
+from src.utils import progress_utils as pu
 
 def extract_frames(video_path: str, target_frames: int, indent_frames:int=0) -> (bool, str):
     # 打开视频文件
@@ -28,6 +28,7 @@ def extract_frames(video_path: str, target_frames: int, indent_frames:int=0) -> 
     print(f"要抽取的帧数: {target_frames}")
     # 创建一个tqdm对象
     progress_bar = tqdm(total=target_frames)
+    pu.new_progress(target_frames)
 
     # 逐帧读取视频并保存为JPG文件
     current_frame = 0
@@ -45,6 +46,7 @@ def extract_frames(video_path: str, target_frames: int, indent_frames:int=0) -> 
 
             current_output_frame += 1
             progress_bar.update(1)
+            pu.update(1)
 
         current_frame += 1
 
