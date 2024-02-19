@@ -28,9 +28,9 @@ def init():
     style.colors[imgui.COLOR_MODAL_WINDOW_DIM_BACKGROUND] = (0.09, 0.09, 0.09, 0.89)
 
     style.window_rounding = 0
-    style.child_rounding = 4
-    style.frame_rounding = 4
-    style.popup_rounding = 8
+    style.child_rounding = 4 * g.GLOBAL_SCALE
+    style.frame_rounding = 4 * g.GLOBAL_SCALE
+    style.popup_rounding = 8 * g.GLOBAL_SCALE
 
 
 gray = (0.6, 0.6, 0.6, 1)

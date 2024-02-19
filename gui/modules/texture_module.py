@@ -50,9 +50,12 @@ def remove_texture(texture_id):
 
 font_size = 24
 font = ImageFont.truetype(os.path.join(g.GUI_RESOURCES_ROOT, 'fonts/arial.ttf'), font_size)  # 使用 Arial 字体，指定字体大小
+
+
 def hsv_to_rgb(h, s, v):
     rgb_color = colorsys.hsv_to_rgb(h, s, v)
     return tuple(int(round(c * 255)) for c in rgb_color)
+
 
 def generate_character_icon(character):
     if character in _cached_icons:

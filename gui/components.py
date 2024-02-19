@@ -53,6 +53,7 @@ def selectable_region(name, width, height, content: Callable, *args):
             imgui.push_style_color(imgui.COLOR_CHILD_BACKGROUND, *g.mImguiStyle.colors[imgui.COLOR_BUTTON_HOVERED])
     else:
         imgui.push_style_color(imgui.COLOR_CHILD_BACKGROUND, *g.mImguiStyle.colors[imgui.COLOR_BUTTON])
+    imgui.push_style_var(imgui.STYLE_CHILD_ROUNDING, g.mImguiStyle.frame_rounding)
     imgui.begin_child(name, width, height, border=False)
     if not clicked:
         _selectable_region_hovering_data[name] = imgui.is_window_hovered()
@@ -61,6 +62,7 @@ def selectable_region(name, width, height, content: Callable, *args):
     content(*args)
     imgui.end_child()
     imgui.pop_style_color()
+    imgui.pop_style_var()
     return clicked
 
 

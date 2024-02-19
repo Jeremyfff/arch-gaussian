@@ -25,5 +25,5 @@ mImguiStyle: Optional[imgui.core.GuiStyle] = None
 # init in layout module
 mLayoutScheme = None
 # nav bar
-mCurrNavIdx = 0
+mCurrNavIdx = -1
 
