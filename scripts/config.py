@@ -1,7 +1,7 @@
 from argparse import Namespace
 import os
 
-data_root = '.'
+project_root = '.'
 # scene
 scene_name = "your_scene_name"
 output_name = ""  # 留空则使用和scene_name一样的配置
@@ -21,7 +21,7 @@ def update_colmap_args():
     colmap_args = Namespace(
         no_gpu=False,
         skip_matching=False,
-        source_path=f"{data_root}/data/{scene_name}",
+        source_path=f"{project_root}/data/{scene_name}",
         camera="OPENCV",
         colmap_executable=colmap_executable,
         resize=False,
@@ -52,8 +52,8 @@ def update_args():
 
     args = Namespace(
         sh_degree=sh_degree,
-        source_path=f"{data_root}/data/{scene_name}",
-        model_path=f"{data_root}/output/{output_name if output_name != '' else scene_name}",
+        source_path=f"{project_root}/data/{scene_name}",
+        model_path=f"{project_root}/output/{output_name if output_name != '' else scene_name}",
         images="images",
         resolution=resolution,
         white_background=white_background,
