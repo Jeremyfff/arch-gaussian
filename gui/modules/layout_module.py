@@ -1,6 +1,10 @@
 from enum import Enum
 from typing import Optional
+
+import imgui
+
 from gui import global_var as g
+from gui.modules.base_module import BaseModule
 
 
 class LayoutMode(Enum):
@@ -62,6 +66,18 @@ class LayoutElement:
         for child in self.children:
             child.update_children_size()
 
+    def set_width(self, value):
+        self.value = value
+
+    def get_width(self):
+        return self.value
+
+    def set_height(self, value):
+        self.value = value
+
+    def get_height(self):
+        return self.value
+
 
 class LayoutScheme:
     def __init__(self, scheme_name):
@@ -96,28 +112,57 @@ class LayoutScheme:
         return self._size_dict[name]
 
 
-def init():
+class LayoutModule(BaseModule):
     layout = LayoutScheme('main layout')
-    style = g.mImguiStyle
-    layout.root_layout.set_layout_direction(LayoutDirection.Vertical)
-    layout.root_layout.add_child('level1_top', LayoutMode.fixed, g.FONT_SIZE + style.window_padding[1] * 2 + style.frame_padding[1] * 2)
-    level1_mid = layout.root_layout.add_child('level1_mid', LayoutMode.flexible, 1)
-    layout.root_layout.add_child('level1_bot', LayoutMode.fixed, g.FONT_SIZE + style.window_padding[1] * 2 + style.frame_padding[1] * 2)
 
-    level1_mid.set_layout_direction(LayoutDirection.Horizontal)
-    level1_mid.add_child('level2_left', LayoutMode.fixed, g.FONT_SIZE + style.window_padding[0] * 2 + style.frame_padding[0] * 2)
-    level2_right = level1_mid.add_child('level2_right', LayoutMode.flexible, 1)
+    vertical_resizable_layout: Optional[LayoutElement] = None  # 竖向的可以调整大小的layout element
+    horizontal_resizable_layout: Optional[LayoutElement] = None  # 横向的可以调整大小的layout element
 
-    level2_right.set_layout_direction(LayoutDirection.Horizontal)
-    level2_right.add_child('level3_left', LayoutMode.fixed, 400)
-    level3_right = level2_right.add_child('level3_right', LayoutMode.flexible, 1)  # main graphic view
+    @classmethod
+    def m_init(cls):
+        style = g.mImguiStyle
+        cls.layout.root_layout.set_layout_direction(LayoutDirection.Vertical)
+        cls.layout.root_layout.add_child('level1_top', LayoutMode.fixed,
+                                         g.FONT_SIZE + style.window_padding[1] * 2 + style.frame_padding[1] * 2)
+        level1_mid = cls.layout.root_layout.add_child('level1_mid', LayoutMode.flexible, 1)
+        cls.layout.root_layout.add_child('level1_bot', LayoutMode.fixed,
+                                         g.FONT_SIZE + style.window_padding[1] * 2 + style.frame_padding[1] * 2)
 
-    level3_right.set_layout_direction(LayoutDirection.Vertical)
-    level3_right.add_child('level4_top', LayoutMode.flexible, 1)
-    level3_right.add_child('level4_bot', LayoutMode.flexible, 1)
-    layout.update()
-    g.mLayoutScheme = layout
+        level1_mid.set_layout_direction(LayoutDirection.Horizontal)
+        level1_mid.add_child('level2_left', LayoutMode.fixed,
+                             g.FONT_SIZE + style.window_padding[0] * 2 + style.frame_padding[0] * 2)
+        level2_right = level1_mid.add_child('level2_right', LayoutMode.flexible, 1)
 
+        level2_right.set_layout_direction(LayoutDirection.Horizontal)
+        level3_left = level2_right.add_child('level3_left', LayoutMode.fixed, 400 * g.GLOBAL_SCALE)
+        cls.vertical_resizable_layout = level3_left
+        level2_right.add_child('level3_middle', LayoutMode.fixed, 2)
+        level3_right = level2_right.add_child('level3_right', LayoutMode.flexible, 1)  # main graphic view
 
-def on_resize():
-    g.mLayoutScheme.update()
+        level3_right.set_layout_direction(LayoutDirection.Vertical)
+        level3_right.add_child('level4_top', LayoutMode.flexible, 1)
+        level3_right.add_child('level4_bot', LayoutMode.flexible, 1)
+        cls.layout.update()
+
+    @classmethod
+    def on_resize(cls):
+        cls.layout.update()
+
+    class LayoutWindow:
+        default_flags = imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_BRING_TO_FRONT_ON_FOCUS
+
+        def __init__(self, layout_name, window_name=None, closable=False, flags=None):
+            self.layout_name = layout_name
+            self.window_name = layout_name if window_name is None else window_name
+            self.window_closable = closable
+            self.window_flags = LayoutModule.LayoutWindow.default_flags if window_name is None else flags
+
+        def __enter__(self):
+
+            imgui.set_next_window_position(*LayoutModule.layout.get_pos(self.layout_name))
+            imgui.set_next_window_size(*LayoutModule.layout.get_size(self.layout_name))
+            imgui.begin(self.window_name, self.window_closable, self.window_flags)
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            imgui.end()

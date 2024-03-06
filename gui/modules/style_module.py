@@ -1,38 +1,77 @@
-from gui import global_var as g
 import imgui
-from ImNodeEditor import NEStyle
+
+from gui import global_var as g
+from gui.modules.base_module import BaseModule
+from gui.utils import color_utils
 
 
-def init():
-    style: imgui.core.GuiStyle = imgui.get_style()
-    g.mImguiStyle = style
+class StyleModule(BaseModule):
+    COLOR_GRAY = (0.6, 0.6, 0.6, 1)
+    COLOR_WHITE = (1, 1, 1, 1)
+    COLOR_BLACK = (0, 0, 0, 1)
+    COLOR_BLUE = (0.2, 0.41, 0.68, 1)
+    COLOR_GREEN = (0.1, 0.6, 0.3, 1)
+    COLOR_YELLOW = (0.9, 0.7, 0.1, 1)
+    COLOR_RED = (0.8, 0.2, 0.2, 1)
 
-    style.colors[imgui.COLOR_TEXT] = (1.00, 1.00, 1.00, 1.00)
-    style.colors[imgui.COLOR_WINDOW_BACKGROUND] = (0.12, 0.12, 0.12, 1.00)
-    style.colors[imgui.COLOR_BORDER] = (0.20, 0.20, 0.20, 0.50)
-    style.colors[imgui.COLOR_FRAME_BACKGROUND] = (0.32, 0.32, 0.32, 0.54)
-    style.colors[imgui.COLOR_FRAME_BACKGROUND_HOVERED] = (0.73, 0.73, 0.73, 0.40)
+    COLOR_PRIMARY = COLOR_BLUE
+    COLOR_SECONDARY = COLOR_GRAY
+    COLOR_SUCCESS = COLOR_GREEN
+    COLOR_WARNING = COLOR_YELLOW
+    COLOR_DANGER = COLOR_RED
 
-    style.colors[imgui.COLOR_FRAME_BACKGROUND_ACTIVE] = (0.98, 0.98, 0.98, 0.67)
-    style.colors[imgui.COLOR_TITLE_BACKGROUND] = (0.25, 0.25, 0.25, 1.00)
-    style.colors[imgui.COLOR_TITLE_BACKGROUND_ACTIVE] = (0.23, 0.37, 0.58, 1.00)
-    style.colors[imgui.COLOR_BUTTON] = (0.35, 0.35, 0.35, 1.00)
-    style.colors[imgui.COLOR_BUTTON_HOVERED] = (0.45, 0.45, 0.45, 1.00)
-    style.colors[imgui.COLOR_BUTTON_ACTIVE] = (0.35, 0.35, 0.35, 1.00)
-    style.colors[imgui.COLOR_HEADER] = (0.29, 0.29, 0.29, 1.00)
-    style.colors[imgui.COLOR_HEADER_HOVERED] = (0.46, 0.46, 0.46, 1.00)
-    style.colors[imgui.COLOR_HEADER_ACTIVE] = (0.44, 0.44, 0.44, 1.00)
-    style.colors[imgui.COLOR_TAB] = (0.33, 0.33, 0.33, 1.00)
-    style.colors[imgui.COLOR_TAB_HOVERED] = (0.46, 0.46, 0.46, 1.00)
-    style.colors[imgui.COLOR_PLOT_HISTOGRAM] = (0.14, 0.50, 0.90, 1.00)
-    style.colors[imgui.COLOR_MODAL_WINDOW_DIM_BACKGROUND] = (0.09, 0.09, 0.09, 0.89)
+    @classmethod
+    def m_init(cls):
+        style: imgui.core.GuiStyle = imgui.get_style()
+        g.mImguiStyle = style
 
-    style.window_rounding = 0
-    style.child_rounding = 4 * g.GLOBAL_SCALE
-    style.frame_rounding = 4 * g.GLOBAL_SCALE
-    style.popup_rounding = 8 * g.GLOBAL_SCALE
+        style.colors[imgui.COLOR_TEXT] = (1.00, 1.00, 1.00, 1.00)
+        style.colors[imgui.COLOR_WINDOW_BACKGROUND] = (0.12, 0.12, 0.12, 1.00)
+        style.colors[imgui.COLOR_BORDER] = (0.20, 0.20, 0.20, 0.50)
+        style.colors[imgui.COLOR_FRAME_BACKGROUND] = (0.32, 0.32, 0.32, 0.54)
+        style.colors[imgui.COLOR_FRAME_BACKGROUND_HOVERED] = (0.73, 0.73, 0.73, 0.40)
 
+        style.colors[imgui.COLOR_FRAME_BACKGROUND_ACTIVE] = (0.98, 0.98, 0.98, 0.67)
+        style.colors[imgui.COLOR_TITLE_BACKGROUND] = (0.25, 0.25, 0.25, 1.00)
+        style.colors[imgui.COLOR_TITLE_BACKGROUND_ACTIVE] = (0.23, 0.37, 0.58, 1.00)
+        style.colors[imgui.COLOR_BUTTON] = (0.35, 0.35, 0.35, 1.00)
+        style.colors[imgui.COLOR_BUTTON_HOVERED] = (0.45, 0.45, 0.45, 1.00)
+        style.colors[imgui.COLOR_BUTTON_ACTIVE] = (0.35, 0.35, 0.35, 1.00)
+        style.colors[imgui.COLOR_HEADER] = (0.29, 0.29, 0.29, 1.00)
+        style.colors[imgui.COLOR_HEADER_HOVERED] = (0.46, 0.46, 0.46, 1.00)
+        style.colors[imgui.COLOR_HEADER_ACTIVE] = (0.44, 0.44, 0.44, 1.00)
+        style.colors[imgui.COLOR_TAB] = (0.33, 0.33, 0.33, 1.00)
+        style.colors[imgui.COLOR_TAB_HOVERED] = (0.46, 0.46, 0.46, 1.00)
+        style.colors[imgui.COLOR_PLOT_HISTOGRAM] = (0.14, 0.50, 0.90, 1.00)
+        style.colors[imgui.COLOR_MODAL_WINDOW_DIM_BACKGROUND] = (0.09, 0.09, 0.09, 0.89)
 
-gray = (0.6, 0.6, 0.6, 1)
-white = (1, 1, 1, 1)
-black = (0, 0, 0, 0)
+        style.window_rounding = 0
+        style.child_rounding = 4 * g.GLOBAL_SCALE
+        style.frame_rounding = 4 * g.GLOBAL_SCALE
+        style.popup_rounding = 8 * g.GLOBAL_SCALE
+        style.tab_rounding = style.tab_rounding * g.GLOBAL_SCALE
+        style.scrollbar_rounding = style.scrollbar_rounding * g.GLOBAL_SCALE
+        style.grab_rounding = style.grab_rounding * g.GLOBAL_SCALE
+
+        style.window_padding = (style.window_padding[0] * g.GLOBAL_SCALE, style.window_padding[1] * g.GLOBAL_SCALE)
+        style.frame_padding = (style.frame_padding[0] * g.GLOBAL_SCALE, style.frame_padding[1] * g.GLOBAL_SCALE)
+        style.cell_padding = (style.cell_padding[0] * g.GLOBAL_SCALE, style.cell_padding[1] * g.GLOBAL_SCALE)
+
+        style.item_spacing = (style.item_spacing[0] * g.GLOBAL_SCALE, style.item_spacing[1] * g.GLOBAL_SCALE)
+        style.indent_spacing = style.indent_spacing * g.GLOBAL_SCALE
+        style.item_inner_spacing = (
+            style.item_inner_spacing[0] * g.GLOBAL_SCALE, style.item_inner_spacing[1] * g.GLOBAL_SCALE)
+
+    @classmethod
+    def push_highlighted_button_color(cls):
+        imgui.push_style_color(imgui.COLOR_BUTTON,
+                               *color_utils.align_alpha(cls.COLOR_PRIMARY, g.mImguiStyle.colors[imgui.COLOR_BUTTON]))
+
+    @classmethod
+    def pop_button_color(cls):
+        imgui.pop_style_color()
+
+    @classmethod
+    def push_disabled_button_color(cls):
+        imgui.push_style_color(imgui.COLOR_BUTTON,
+                               *color_utils.align_alpha(cls.COLOR_GRAY, g.mImguiStyle.colors[imgui.COLOR_BUTTON]))

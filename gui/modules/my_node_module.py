@@ -3,24 +3,23 @@ import os
 import random
 import threading
 import time
+import tkinter as tk
 from abc import abstractmethod
+from tkinter import filedialog
 from typing import Optional
+
+import imgui
 import moderngl
 import numpy as np
 import pyperclip
-import imgui
-from PIL import Image
-import tkinter as tk
-from tkinter import filedialog
-import sys
-from io import StringIO
-
 from ImNodeEditor import NE, NEStyle, NEDrawer, NEOP, PinKind
 from ImNodeEditor import Node, RightMenuManager
+from PIL import Image
 
-from src.utils import progress_utils as pu
+from gui import components
 from gui import global_var as g
-
+from gui.utils import io_utils
+from src.utils import progress_utils as pu
 
 PIN_TYPES = {'flow', 'any', 'float', 'vector2', 'vector3', 'vector4', 'int', 'str',
              }
@@ -47,29 +46,6 @@ FLOW_ICON_OFFSETS = [(-5, -5), (-5, 5), (3, 5), (6.0, 0), (3, -5)]
 _tmp_data_storage = {}
 
 db_root = r'D:\M.Arch\MastersThesis\arch-gaussian\shared'
-
-
-class OutputCapture:
-    def __init__(self, target_list):
-        self.output_list = target_list
-        self.output_text = StringIO()
-
-    def write(self, text):
-        self.output_text.write(text)
-        if text.endswith('\n'):  # 以换行符判断一次输出结束
-            output = self.output_text.getvalue().strip()
-            if output != '':
-                self.output_list.append(output)
-            self.output_text.truncate(0)
-            self.output_text.seek(0)
-
-    def __enter__(self):
-        self.old_stdout = sys.stdout
-        sys.stdout = self
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        sys.stdout = self.old_stdout
 
 
 def show_pin_color_editor():
@@ -114,6 +90,7 @@ def get_node_color(node_category):
 
 
 def pin_icon_factory(pin_uid, pin_kind: PinKind, pin_type: str, enabled: bool):
+    _ = enabled
     pos = NE.mPinPosDict[pin_uid]
 
     if pin_type == 'flow':
@@ -145,6 +122,7 @@ def pin_color_factory(pin_kind: PinKind, pin_type: str, enabled: bool) -> int:
     :param enabled:
     :return: push的style的个数
     """
+    _ = pin_kind
     if not enabled:
         imgui.push_style_color(imgui.COLOR_BUTTON, 0, 0, 0, 0.5)
         imgui.push_style_color(imgui.COLOR_TEXT, 0.5, 0.5, 0.5, 0.5)
@@ -440,7 +418,7 @@ class NodeTimeConsumer(NodeSimpleTemplate):
         if imgui.button('expand', width=imgui.get_content_region_available_width()):
             self.expanded = not self.expanded
         if self.expanded:
-            imgui.begin_child(f'{self.uid} log msgs', 0, 200 * NE.mViewScale, border=True)
+            components.begin_child(f'{self.uid} log msgs', 0, 200 * NE.mViewScale, border=True)
             imgui.set_window_font_scale(NE.mViewScale)
             NE.forbidden_zoom_when_window_hovered()
             for msg in self.log_msgs:
@@ -648,6 +626,7 @@ class NodeInputSceneBrowser(NodeSimpleTemplate):
         self.curr_folder_idx = -1
 
     def get_sub_folders(self, folder):
+        _ = self
         subdirectories = []
         for entry in os.scandir(folder):
             if entry.is_dir():
@@ -667,7 +646,7 @@ class NodeInputSceneBrowser(NodeSimpleTemplate):
 
     def draw_parameters(self):
         any_change = False
-        imgui.begin_child('folders', imgui.get_content_region_available_width(), 100 * NE.mViewScale, border=True)
+        components.begin_child('folders', imgui.get_content_region_available_width(), 100 * NE.mViewScale, border=True)
         imgui.set_window_font_scale(NE.mViewScale)
         NE.forbidden_zoom_when_window_hovered()
         for i, folder_name in enumerate(self.curr_sub_folder_names):
@@ -679,7 +658,7 @@ class NodeInputSceneBrowser(NodeSimpleTemplate):
                     self.update_curr_sub_folders()
                     any_change |= True
                 else:
-                    # first check subfolders
+                    # first check sub folders
                     sub_folders = self.get_sub_folders(os.path.join(self.curr_folder, folder_name))
                     if 'input' in sub_folders or 'distorted' in sub_folders:
                         self.target_folder = os.path.join(self.curr_folder, folder_name)
@@ -1021,7 +1000,6 @@ class NodeEndFlow(NodeSimpleTemplate):
                 else:
                     self.display_text = '请检查自身连接'
 
-        # imgui.text_wrapped(f'output: {self.display_text}')
         return any_change
 
     def process(self):
@@ -1169,7 +1147,7 @@ class NodeColmapMatching(NodeSimpleTemplate):
             if imgui.button('view logs'):
                 imgui.open_popup('NodeColmapMatchingLogsPopup')
             if imgui.begin_popup('NodeColmapMatchingLogsPopup'):
-                imgui.begin_child('NodeColmapMatchingLogsChild', 600, 600, border=True)
+                components.begin_child('NodeColmapMatchingLogsChild', 600, 600, border=True)
                 NE.forbidden_zoom_when_window_hovered()
                 for i in range(len(self.output_msgs)):
                     imgui.text_wrapped(self.output_msgs[len(self.output_msgs) - i - 1])
@@ -1182,7 +1160,7 @@ class NodeColmapMatching(NodeSimpleTemplate):
         args = self.input[self.input_ids[1]]
         self.status = 'running'
         self.output_msgs = []
-        with OutputCapture(self.output_msgs):
+        with io_utils.OutputCapture(self.output_msgs):
             len_files = len(os.listdir(os.path.join(args.source_path, "input")))
             print(f"共有{len_files}个文件")
             colmap_command = '"{}"'.format(args.colmap_executable) if len(args.colmap_executable) > 0 else "colmap"
@@ -1197,15 +1175,15 @@ class NodeColmapMatching(NodeSimpleTemplate):
                 return
             os.makedirs(args.source_path + "/distorted/sparse", exist_ok=True)
             # feature extraction
-            feat_extracton_cmd = colmap_command + " feature_extractor " \
-                                                  "--database_path " + args.source_path + "/distorted/database.db \
+            feat_extraction_cmd = colmap_command + " feature_extractor " \
+                                                   "--database_path " + args.source_path + "/distorted/database.db \
                     --image_path " + args.source_path + "/input \
                     --ImageReader.single_camera 1 \
                     --ImageReader.camera_model " + args.camera + " \
                     --SiftExtraction.use_gpu " + str(use_gpu)
             print("start feat extraction cmd")
-            print(feat_extracton_cmd)
-            run_colmap_feature_extraction(feat_extracton_cmd)
+            print(feat_extraction_cmd)
+            run_colmap_feature_extraction(feat_extraction_cmd)
             # feature matching
             feat_matching_cmd = colmap_command + " exhaustive_matcher \
                         --database_path " + args.source_path + "/distorted/database.db \
@@ -1253,7 +1231,7 @@ class NodeColmapImageUnDistortion(NodeSimpleTemplate):
             if imgui.button('view logs'):
                 imgui.open_popup('NodeColmapImageUnDistortionLogsPopup')
             if imgui.begin_popup('NodeColmapImageUnDistortionLogsPopup'):
-                imgui.begin_child('NodeColmapImageUnDistortionLogsChild', 600, 600, border=True)
+                components.begin_child('NodeColmapImageUnDistortionLogsChild', 600, 600, border=True)
                 NE.forbidden_zoom_when_window_hovered()
                 for i in range(len(self.output_msgs)):
                     imgui.text_wrapped(self.output_msgs[len(self.output_msgs) - i - 1])
@@ -1267,7 +1245,7 @@ class NodeColmapImageUnDistortion(NodeSimpleTemplate):
         args = self.input[self.input_ids[1]]
         self.status = 'running'
         self.output_msgs = []
-        with OutputCapture(self.output_msgs):
+        with io_utils.OutputCapture(self.output_msgs):
             colmap_command = '"{}"'.format(args.colmap_executable) if len(args.colmap_executable) > 0 else "colmap"
             magick_command = '"{}"'.format(args.magick_executable) if len(args.magick_executable) > 0 else "magick"
 

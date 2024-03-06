@@ -1,20 +1,12 @@
 import os
-import random
-from typing import Optional
-import colorsys
 import moderngl
-import glob
-
-import numpy as np
+import imgui
 
 from gui import global_var as g
 from PIL import Image, ImageDraw, ImageFont
+from gui.utils import color_utils, io_utils
 
 _cached_icons: dict[str: int] = {}  # name : texture id
-
-
-def init():
-    pass
 
 
 def get_icon(name):
@@ -48,19 +40,13 @@ def remove_texture(texture_id):
     g.mWindowEvent.imgui.remove_texture(g.mWindowEvent.imgui._textures[texture_id])
 
 
-font_size = 24
-font = ImageFont.truetype(os.path.join(g.GUI_RESOURCES_ROOT, 'fonts/arial.ttf'), font_size)  # 使用 Arial 字体，指定字体大小
-
-
-def hsv_to_rgb(h, s, v):
-    rgb_color = colorsys.hsv_to_rgb(h, s, v)
-    return tuple(int(round(c * 255)) for c in rgb_color)
+_font_size = 24
+_font = ImageFont.truetype(os.path.join(g.GUI_RESOURCES_ROOT, 'fonts/arial.ttf'), _font_size)  # 使用 Arial 字体，指定字体大小
 
 
 def generate_character_icon(character):
     if character in _cached_icons:
         return character
-
     # 定义一个 HSV 颜色值
     ascii_value = ord(character)
     padded_number = str(ascii_value).zfill(1)
@@ -68,7 +54,7 @@ def generate_character_icon(character):
     s = 0.8  # Saturation (饱和度)
     v = 0.75  # Value (明度)
     # 将 HSV 颜色转换为 RGB 颜色
-    rgb_color = hsv_to_rgb(h, s, v)
+    rgb_color = color_utils.hsv_to_rgb(h, s, v)
     # 添加一个值为 255 的 alpha 通道
     rgba_color = (*rgb_color, 255)
     # 添加一个值为 1 的 alpha 通道
@@ -85,7 +71,36 @@ def generate_character_icon(character):
     text = character
     x = 8
     y = 4
-    draw.text((x, y), text, fill='white', font=font)
+    draw.text((x, y), text, fill='white', font=_font)
     texture = create_texture_from_image(img)
     _cached_icons[character] = texture.glo
     return character
+
+
+_cached_folder_thumbnails = {}  # {folder_path: dict[file_name: Texture]}
+
+
+def get_folder_thumbnails(folder_path, icon_size=64, add_mode=False, force_update=False) -> dict:
+    if folder_path in _cached_folder_thumbnails and not force_update and not add_mode:
+        return _cached_folder_thumbnails[folder_path]
+    if force_update and folder_path in _cached_folder_thumbnails.keys():
+        glos = [texture.glo for texture in _cached_folder_thumbnails[folder_path].values()]
+        for glo in glos:
+            remove_texture(glo)  # recycle texture
+        _cached_folder_thumbnails[folder_path] = {}
+    if folder_path not in _cached_folder_thumbnails.keys():
+        _cached_folder_thumbnails[folder_path] = {}
+
+    for file in os.listdir(folder_path):
+        if file in _cached_folder_thumbnails[folder_path].keys():
+            continue
+        file_path = os.path.join(folder_path, file)
+        file_path = file_path.replace('/', '\\')
+        if not os.path.isfile(file_path):
+            continue
+        print(file_path)
+        pil_image = io_utils.get_file_thumbnail(file_path, icon_size)
+        texture = create_texture_from_image(pil_image)
+        _cached_folder_thumbnails[folder_path][file] = texture
+
+    return _cached_folder_thumbnails[folder_path]

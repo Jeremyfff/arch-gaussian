@@ -1,17 +1,13 @@
 import math
 import pickle
-import sys
-
-from scene import sceneLoadTypeCallbacks
-from scene.dataset_readers import SceneInfo
-
-sys.path.append("./src")
 import open3d as o3d
-from utils.graphics_utils import getWorld2View2, tr2pa, pa2tr
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-from scene.gaussian_model import BasicPointCloud
 import os
+
+from scipy.spatial.transform import Rotation as R
+from src.scene.gaussian_model import BasicPointCloud
+from src.scene import sceneLoadTypeCallbacks
+from src.utils.graphics_utils import getWorld2View2, tr2pa, pa2tr
 
 
 class SceneManager:
@@ -27,7 +23,23 @@ class SceneManager:
         self.__cached_cam_axis = None
         self.__cached_ground_up_vec = None
 
-    def get_cam_pos_and_axis(self) -> tuple[np.ndarray, np.ndarray]:
+    @property
+    def scene_info(self):
+        return self.__scene_info
+
+    @property
+    def cam_pos(self):
+        return self.__cached_cam_pos
+
+    @property
+    def cam_axis(self):
+        return self.__cached_cam_axis
+
+    @property
+    def ground_up_vec(self):
+        return self.__cached_ground_up_vec
+
+    def _get_cam_pos_and_axis(self) -> tuple[np.ndarray, np.ndarray]:
         """
         @Jeremy
         Calculate camera position and axis,
@@ -48,7 +60,7 @@ class SceneManager:
         return _cam_pos_array, _cam_axis_array
 
     @staticmethod
-    def __normalize_vec(_vec: np.ndarray) -> np.ndarray:
+    def _normalize_vec(_vec: np.ndarray) -> np.ndarray:
         norm = np.linalg.norm(_vec)
         return _vec / norm
 
@@ -61,7 +73,7 @@ class SceneManager:
         else, calculate a new ground up vector
         """
         if self.__cached_cam_axis is None:
-            self.get_cam_pos_and_axis()  # this step will add cam_axis to cache
+            self._get_cam_pos_and_axis()  # this step will add cam_axis to cache
         assert self.__cached_cam_axis is not None, "self.cached_cam_axis is None"
         # ground up vector
         randomly_selected_cam_rs = self.__cached_cam_axis[
@@ -72,12 +84,12 @@ class SceneManager:
         group2 = randomly_selected_cam_rs[half_size:]
         ups = []
         for j in range(len(group1)):
-            vec1 = self.__normalize_vec(group1[j][0])
-            vec2 = self.__normalize_vec(group2[j][0])
+            vec1 = self._normalize_vec(group1[j][0])
+            vec2 = self._normalize_vec(group2[j][0])
             dis_sq = np.dot((vec1 - vec2), (vec1 - vec2))
             if dis_sq < 0.1:
                 continue
-            up = self.__normalize_vec(np.cross(vec1, vec2))
+            up = self._normalize_vec(np.cross(vec1, vec2))
             if len(ups) > 0 and np.dot(ups[0], up) < 0.0:
                 up *= -1
             ups.append(up)
@@ -103,7 +115,7 @@ class SceneManager:
         # prepare
         if self.__cached_cam_axis is None or self.__cached_cam_pos is None:
             print("getting cam pos and axis")
-            self.get_cam_pos_and_axis()  # this step will add cam_axis to cache
+            self._get_cam_pos_and_axis()  # this step will add cam_axis to cache
         assert self.__cached_cam_axis is not None and self.__cached_cam_pos is not None, \
             "self.cached_cam_axis or self.cached_cam_pos is None"
         if self.__cached_ground_up_vec is None:
@@ -199,7 +211,7 @@ class SceneManager:
             print("use cached rotation")
             return self.rotate(cached_rotation), cached_rotation
         if self.__cached_cam_axis is None or self.__cached_cam_pos is None:
-            self.get_cam_pos_and_axis()  # this step will add cam_axis to cache
+            self._get_cam_pos_and_axis()  # this step will add cam_axis to cache
         assert self.__cached_cam_axis is not None and self.__cached_cam_pos is not None, \
             "self.cached_cam_axis or self.cached_cam_pos is None"
         if self.__cached_ground_up_vec is None:
@@ -217,11 +229,8 @@ class SceneManager:
         self.__cached_cam_axis = None
         self.__cached_ground_up_vec = None
 
-    def get_scene_info(self) -> SceneInfo:
-        return self.__scene_info
 
-
-def load_and_fix_scene(args) -> SceneInfo:
+def load_and_fix_scene(args) -> SceneManager:
     """
     @Jeremy
     一个从args快速创教场景并修复的便捷工具
@@ -265,10 +274,10 @@ def load_and_fix_scene(args) -> SceneInfo:
     # new_scene_manager.visualize()  # 可视化
     print(f"😊fix complete\n")
 
-    scene_info = new_scene_manager.get_scene_info()
+    scene_info = new_scene_manager.scene_info
     print("========== scene info ===========")
     print(f"train cams count: {len(scene_info.train_cameras)}")
     print(f"test cams count: {len(scene_info.test_cameras)}")
     print(f"points count: {scene_info.point_cloud.points.shape[0]}")
     print("================================")
-    return scene_info
+    return new_scene_manager

@@ -10,7 +10,7 @@ vid_frames = 200
 vid_name = "VID.mp4"
 
 # colmap
-colmap_executable = r"D:\FengYiheng\ProgramFiles\COLMAP-3.8-windows-cuda\COLMAP.bat"
+colmap_executable = r'C:\Program Files\COLMAP-3.9.1-windows-cuda\COLMAP.bat'
 colmap_args = None
 _last_colmap_args = None
 

@@ -23,8 +23,8 @@ class BasicPointCloud(NamedTuple):
 
 def geom_transform_points(points, transf_matrix):
     P, _ = points.shape
-    ones = torch.ones(P, 1, dtype=points.dtype, device=points.device)
-    points_hom = torch.cat([points, ones], dim=1)
+    one = torch.ones(P, 1, dtype=points.dtype, device=points.device)
+    points_hom = torch.cat([points, one], dim=1)
     points_out = torch.matmul(points_hom, transf_matrix.unsqueeze(0))
 
     denom = points_out[..., 3:] + 0.0000001

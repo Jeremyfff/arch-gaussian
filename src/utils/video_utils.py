@@ -3,7 +3,7 @@ import os
 import shutil
 from tqdm.auto import tqdm
 from src.utils import progress_utils as pu
-
+from PIL import Image
 def extract_frames(video_path: str, target_frames: int, indent_frames:int=0) -> (bool, str):
     # 打开视频文件
     cap = cv2.VideoCapture(video_path)
@@ -54,3 +54,48 @@ def extract_frames(video_path: str, target_frames: int, indent_frames:int=0) -> 
     cap.release()
     print(f"图像保存至{output_folder}")
     return True, output_folder
+
+
+def process_google_earth_frames(input_folder_path, output_folder_path, step, resize):
+    if os.path.exists(output_folder_path):
+        shutil.rmtree(output_folder_path)
+    os.makedirs(output_folder_path)
+    # 获取文件夹内的所有文件列表
+    file_list = os.listdir(input_folder_path)
+    # 按照文件名排序
+    sorted_file_list = sorted(file_list)
+    sorted_file_list = sorted_file_list[::step]
+    # 创建一个tqdm对象
+    progress_bar = tqdm(total=len(sorted_file_list))
+    pu.new_progress(len(sorted_file_list))
+    print(len(sorted_file_list))
+    # 重命名文件为序号
+    for index, file_name in enumerate(sorted_file_list):
+
+        file_path = os.path.join(input_folder_path, file_name)
+
+        # 打开图像文件
+        image = Image.open(file_path)
+
+        # 获取图像的宽度和高度
+        width, height = image.size
+
+        # 计算裁剪的区域尺寸
+        crop_height = int(height * 0.1)  # 上面 10% 的高度
+
+        # 裁剪图像
+        cropped_image = image.crop((0, crop_height, width, height))
+
+
+        if resize:
+            ratio = width / 1920
+            resized_image = cropped_image.resize((int(width / ratio), int(height / ratio)))
+        else:
+            resized_image = cropped_image
+
+        new_file_name = f"{(index+1):05d}.jpg"  # 根据需要修改文件扩展名
+        new_file_path = os.path.join(output_folder_path, new_file_name)
+        resized_image.save(new_file_path)
+
+        progress_bar.update(1)
+        pu.update(1)

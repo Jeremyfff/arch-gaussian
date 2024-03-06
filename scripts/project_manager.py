@@ -7,10 +7,6 @@ import json
 
 # 所有与项目相关的信息都储存在这里
 class Project:
-    def __init__(self, project_name, project_root):
-        self.project_name = project_name
-        self.project_root = project_root
-
     @staticmethod
     def create_project(project_name, project_root) -> 'Project':
         """创建项目，创建项目文件夹并创建配置文件"""
@@ -21,6 +17,7 @@ class Project:
         project = Project(project_name, project_root)
         os.makedirs(os.path.join(project.project_root, 'data'), exist_ok=True)
         os.makedirs(os.path.join(project.project_root, 'output'), exist_ok=True)
+        project.scan()
         project.save()
         return project
 
@@ -45,12 +42,22 @@ class Project:
             project.restore(json_data)
             if json_changed:
                 project.save()
+            project.scan()
             return project
         else:
             return None
             # 如果没有配置文件，则在文件夹下创建新的项目
             # project = Project.create_project(os.path.basename(folder_path), folder_path)
             # return project
+
+    def __init__(self, project_name, project_root):
+        self.project_name = project_name
+        self.project_root = project_root
+        self.info = {}
+
+    def update(self):
+        if not self.info:
+            self.scan()
 
     def restore(self, data: dict):
         if global_info.VERSION != data['project_version']:
@@ -62,7 +69,6 @@ class Project:
         except Exception as e:
             print(str(e))
             return None
-
 
     def save(self):
         project_info = {'project_version': global_info.VERSION,
@@ -79,5 +85,99 @@ class Project:
             file.write(json_data)
         print("JSON 数据已保存到文件:", file_path)
 
+    def clear_info(self):
+        self.info = {}
+
+    def update_info(self):
+        self.clear_info()
+        self.scan()
+
+    def get_info(self, name):
+        return self.info[name]
+
+    def scan(self):
+        print(f'scanning...')
+        self.scan_basic()
+        self.scan_video()
+        self.scan_google_earth_footage()
+        self.scan_input_images()
+        self.scan_sparse0()
+
+    def scan_basic(self):
+        data_root = os.path.join(self.project_root, 'data')
+        os.makedirs(data_root, exist_ok=True)
+        self.info['data_root'] = data_root
+
+        output_root = os.path.join(self.project_root, 'output')
+        os.makedirs(output_root, exist_ok=True)
+        self.info['output_root'] = output_root
+
+
+    def scan_video(self):
+        """
+        detect video in root/data
+        updates:
+        mp4_file_names : list[str]
+        mp4_file_paths : list[str]
+        """
+        data_root = self.info['data_root']
+        files = os.listdir(data_root)
+        mp4_file_names = [file for file in files if file.endswith(".mp4")]
+        mp4_file_paths = [os.path.join(data_root, file) for file in mp4_file_names]
+        self.info['mp4_file_names'] = mp4_file_names
+        self.info['mp4_file_paths'] = mp4_file_paths
+
+    def scan_google_earth_footage(self):
+        """
+        scan Google Earth footage folder(root/data/footage) and images inside it
+        footage_image_folder: str # Google Earth footage folder
+        has_footage_image_folder : bool
+        footage_image_names : list[str]
+        footage_image_paths : list[str]
+        """
+        data_root = self.info['data_root']
+        self.info['footage_image_folder'] = os.path.join(data_root, 'footage')
+        files = os.listdir(data_root)
+        if 'footage' in files:
+            input_path = self.info['footage_image_folder']
+            file_names = os.listdir(input_path)
+            file_paths = [os.path.join(input_path, file_name) for file_name in file_names]
+            self.info['footage_image_names'] = file_names
+            self.info['footage_image_paths'] = file_paths
+            self.info['has_footage_image_folder'] = True
+        else:
+            self.info['footage_image_names'] = []
+            self.info['footage_image_paths'] = []
+            self.info['has_footage_image_folder'] = False
+
+    def scan_input_images(self):
+        """
+        scan input image folder (root/data/input) and images inside the folder
+
+        updates:
+        input_image_folder : str  # input image folder path
+        has_input_image_folder : bool  # is input image folder exist
+        input_image_names : list[str] # image names in input image folder
+        input_image_paths : list[str]  # image paths in input image folder
+        """
+        data_root = self.info['data_root']
+        self.info['input_image_folder'] = os.path.join(data_root, 'input')
+        files = os.listdir(data_root)
+        if 'input' in files:
+            input_path = self.info['input_image_folder']
+            file_names = os.listdir(input_path)
+            file_paths = [os.path.join(input_path, file_name) for file_name in file_names]
+            self.info['input_image_names'] = file_names
+            self.info['input_image_paths'] = file_paths
+            self.info['has_input_image_folder'] = True
+        else:
+            self.info['input_image_names'] = []
+            self.info['input_image_paths'] = []
+            self.info['has_input_image_folder'] = False
+
+    def scan_sparse0(self):
+        data_root = self.info['data_root']
+        sparse_folder = os.path.join(data_root, 'sparse/0')
+        self.info['has_sparse0'] = os.path.exists(sparse_folder)
 
 curr_project: Optional[Project] = None
