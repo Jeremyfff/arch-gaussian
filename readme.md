@@ -1,3 +1,10 @@
+
+# Arch Gaussian
+
+![Version 0.1](assets/image1.png "软件截图")
+![Version 0.1](assets/image2.png "软件截图")
+
+## Install
 ```
 mkdir ArchGaussianProject // 创建工程文件夹
 
