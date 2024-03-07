@@ -1,9 +1,11 @@
 
 # Arch Gaussian
 
-<img src="assets/image1.png" width="800" />
-<img src="assets/image2.png" width="800" />
 
+<div style="text-align:center">
+    <img src="assets/image1.png" width="800" />
+<img src="assets/image2.png" width="800" />
+</div>
 
 ## Install
 ```
