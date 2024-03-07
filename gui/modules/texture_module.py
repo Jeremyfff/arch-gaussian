@@ -98,7 +98,6 @@ def get_folder_thumbnails(folder_path, icon_size=64, add_mode=False, force_updat
         file_path = file_path.replace('/', '\\')
         if not os.path.isfile(file_path):
             continue
-        print(file_path)
         pil_image = io_utils.get_file_thumbnail(file_path, icon_size)
         texture = create_texture_from_image(pil_image)
         _cached_folder_thumbnails[folder_path][file] = texture

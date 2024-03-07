@@ -1,14 +1,15 @@
+import logging
 from abc import abstractmethod
 
-import logging
+
 class BaseContent:
-    _inited_contents = set()
+    _inited = False
 
     @classmethod
     @abstractmethod
     def c_init(cls):
         logging.info(f'[{cls.__name__}] init')
-        BaseContent._inited_contents.add(cls)
+        cls._inited = True
 
     @classmethod
     @abstractmethod
@@ -19,13 +20,13 @@ class BaseContent:
     @classmethod
     @abstractmethod
     def c_show(cls):
-        if cls not in BaseContent._inited_contents:
+        if not cls._inited:
             cls.c_init()  # late init
 
     @classmethod
     @abstractmethod
     def c_on_show(cls):
-        if cls not in BaseContent._inited_contents:
+        if not cls._inited:
             cls.c_init()  # late init
         logging.info(f'[{cls.__name__}] on_show')
 

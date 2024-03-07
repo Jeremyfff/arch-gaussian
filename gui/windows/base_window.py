@@ -3,20 +3,22 @@ from abc import abstractmethod
 
 
 class BaseWindow:
-    _inited_windows = set()
+    _inited= False
 
     @classmethod
     @abstractmethod
     def w_init(cls):
         logging.info(f'[{cls.__name__}] init')
-        BaseWindow._inited_windows.add(cls)
+        cls._inited = True
 
     @classmethod
     @abstractmethod
     def w_update(cls):
-        pass
+        if not cls._inited:
+            cls.w_init()  # late init
 
     @classmethod
     @abstractmethod
     def w_show(cls):
-        pass
+        if not cls._inited:
+            cls.w_init()  # late init

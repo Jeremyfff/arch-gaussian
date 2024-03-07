@@ -1,11 +1,15 @@
+import importlib
+import inspect
+import logging
 import math
 import time
-from enum import Enum
 
 import imgui
+
 from gui import global_var as g
-
-
+from gui.contents import pages
+from gui.modules import StyleModule
+from gui import components as c
 class Ease:
     @staticmethod
     def Linear(t):
@@ -171,6 +175,10 @@ class AnimatedPageGroup:
             self.curr_page_pos[page_key] = page_pos_from
             self.curr_page_alpha[page_key] = 0.0
 
+    def add_page_obj(self, page_obj):
+        page_obj.set_parent_page_group(self)
+        self.add_page(page_obj.page_name, page_obj, page_obj.page_pos_from, page_obj.page_pos_to, page_obj.page_level)
+
     def page_wrapper(self, key, page):
         Tween.step_animation(f'{key}_fade_in')
         Tween.step_animation(f'{key}_fade_out')
@@ -184,7 +192,7 @@ class AnimatedPageGroup:
         else:
             imgui.set_cursor_pos_x(self.curr_page_pos[key])
         imgui.push_id(str(key))
-        page()
+        page.__call__()
         imgui.pop_id()
         self.pop_alpha()
 
@@ -248,6 +256,9 @@ class AnimatedPageGroup:
                               lambda x: self.alpha_fade_func(self.last_page, x),
                               ease=ease)
 
+    def switch_page_obj(self, page_obj):
+        self.switch_page(page_obj.page_name)
+
     def fade_func(self, page, pos):
         self.curr_page_pos[page] = pos
 
@@ -284,6 +295,33 @@ class AnimatedPageGroup:
                 page_clicked = page
         imgui.pop_style_var(2)
         imgui.pop_style_color()
+        imgui.same_line()
+        imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + imgui.get_content_region_available_width() - imgui.get_frame_height_with_spacing())
+        if c.icon_button('settings-4-fill'):
+            imgui.open_popup('pages settings')
+        if imgui.begin_popup('pages settings'):
+            clicked, state = imgui.menu_item('reload all pages')
+            if clicked:
+                self.reload_all_pages()
+            imgui.end_popup()
+
         imgui.separator()
         if page_clicked:
             self.switch_page(page_clicked)
+
+    def reload_all_pages(self):
+
+        logging.info(f'[{self.__class__.__name__}] reloading all pages')
+        org_curr_page = self.curr_page
+        pages.reload_pages()
+        importlib.reload(pages)
+        caller_frame = inspect.currentframe().f_back.f_back
+        caller_class = caller_frame.f_locals.get('cls', None)
+        base_class_name = caller_class.__base__.__name__
+        logging.info(f'[{self.__class__.__name__}] base class name: {base_class_name}')
+        if base_class_name == 'BaseContent':
+            caller_class.c_init()
+            if 'page_group' in dir(caller_class):
+                page_group = getattr(caller_class, 'page_group')
+                page_group.switch_page(org_curr_page)
+

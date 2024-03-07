@@ -12,17 +12,21 @@ from pyrr import Matrix44
 from gui import global_var as g
 
 
-class RenderableObject:
+class BaseGeometry:
+    @abstractmethod
+    def __init__(self, name):
+        self.name = name
+
     @abstractmethod
     def render(self, camera: Camera):
         pass
 
 
-class BaseGeometry3D(RenderableObject):
+class BaseGeometry3D(BaseGeometry):
     """auto update m_proj m_model m_camera"""
 
     def __init__(self, name, program_path, vao: Optional[VAO] = None, mode=moderngl.TRIANGLES):
-        self.name = name
+        super().__init__(name)
         if vao is None:
             self.vao: VAO = VAO(name, mode=mode)
         else:
@@ -80,7 +84,7 @@ class Line3D(BaseGeometry3D):
         self.prog['color'].value = color
 
 
-class Axis3D(RenderableObject):
+class Axis3D(BaseGeometry):
     def __init__(self):
         self.axis_x = Line3D(points=((0, 0, 0), (100, 0, 0)), color=(1, 0, 0, 1))
         self.axis_y = Line3D(points=((0, 0, 0), (0, 100, 0)), color=(0, 1, 0, 1))
@@ -102,7 +106,6 @@ class CubeInstance(BaseGeometry3D):
     def __init__(self):
         super().__init__('cube_instance', program_path='programs/cube_simple_instanced.glsl',
                          vao=geometry.cube(size=(2, 2, 2)))
-
         # Generate per instance data representing a grid of cubes
         N = 100
         self.instances = N * N

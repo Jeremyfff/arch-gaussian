@@ -1,11 +1,9 @@
 import logging
 import os
-
 import imgui
 import moderngl_window as mglw
 from ImNodeEditor import NE
 from moderngl_window.integrations.imgui import ModernglWindowRenderer
-
 from gui import global_info
 from gui import global_var as g
 from gui.ui_manager import UIManager

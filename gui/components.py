@@ -149,6 +149,13 @@ def easy_tooltip(content):
         imgui.set_tooltip(content)
 
 
+def easy_question_mark(content):
+    imgui.same_line()
+    imgui.set_cursor_pos_y(imgui.get_cursor_pos_y() + g.mImguiStyle.frame_padding[1])
+    icon_image('question-line', padding=True, tint_color=(0.5, 0.5, 0.5, 0.5))
+    easy_tooltip(content)
+
+
 def image_gallery(name, texture_infos: dict[str:Texture], width=0.0, height=0.0, columns=4):
     imgui.push_style_color(imgui.COLOR_CHILD_BACKGROUND, 0, 0, 0, 0)
     begin_child(f'image_gallery_{name}', width, height, border=True)
@@ -236,4 +243,3 @@ def create_project_confirm_popup(open_flag, path):
 
 def begin_child(name, width=0.0, height=0.0, border=True, flags=imgui.WINDOW_NONE):
     imgui.begin_child(name, width, height, border=border, flags=flags)
-

@@ -8,7 +8,6 @@ from gui import global_var as g
 from gui.contents.base_content import BaseContent
 from gui.graphic.renderers import SceneInfoRenderer
 from gui.modules import EventModule
-from src.manager.scene_manager import SceneManager
 
 
 class ViewerContent(BaseContent):
@@ -171,14 +170,16 @@ class ViewerContent(BaseContent):
             print(key, action, modifiers)
 
     @classmethod
-    def _on_scene_manager_changed(cls, scene_manager: 'SceneManager'):
+    def _on_scene_manager_changed(cls, scene_manager):
+        from src.manager.scene_manager import SceneManager
+        scene_manager: SceneManager = scene_manager
         logging.info('on scene info changed')
         if cls.mRenderer is None:
             logging.info(f'renderer is None. cannot display scene info')
             return
         if type(cls.mRenderer) == SceneInfoRenderer:
-            cls.mRenderer.update_buffer(scene_manager.scene_info.point_cloud.points,
-                                        scene_manager.scene_info.point_cloud.colors)
+            cls.mRenderer.set_points_arr(scene_manager.scene_info.point_cloud.points,
+                                         scene_manager.scene_info.point_cloud.colors)
 
     @classmethod
     def _register_events(cls):

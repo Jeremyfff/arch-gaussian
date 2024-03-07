@@ -1,6 +1,5 @@
 import imgui
 from ImNodeEditor import NE
-
 from gui.modules import LayoutModule, EventModule, ALL_MODULES
 from gui.windows import ALL_WINDOWS
 from scripts import project_manager as pm

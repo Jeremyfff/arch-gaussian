@@ -1,5 +1,4 @@
 import logging
-import math
 from abc import abstractmethod
 from typing import Literal, Optional
 
@@ -117,6 +116,7 @@ class FreeCameraBehaviour(CameraBehaviour):
         super().__init__()
         self.camera = KeyboardCamera(g.mWindowEvent.wnd.keys)
         self.camera.projection.update(near=0.01, far=1000)
+
     def _key_event(self, key, action, modifiers):
         keys = g.mWindowEvent.wnd.keys
 
@@ -164,24 +164,31 @@ class OrbitCameraBehaviour(CameraBehaviour):
         self.camera.projection.update(near=0.01, far=1000)
 
         self.in_pan_mode = False
+        self.in_pan_z_mode = False
 
     def _mouse_drag_event(self, x: int, y: int, dx, dy):
         _ = x, y
-        if not self.in_pan_mode:
-            self.camera.rot_state(dx * 2, -dy * 2)
-        else:
+        if self.in_pan_mode:
             # 获取相机的视图矩阵
             view_matrix = self.camera.matrix
             r = np.array(view_matrix[:3, 0])
             u = np.array(view_matrix[:3, 1])
-            delta = (r * -dx + u * -dy) * self.camera.mouse_sensitivity * math.sqrt(self.camera.radius) / 100.0
+            delta = (r * -dx + u * -dy) * self.camera.mouse_sensitivity * self.camera.radius / 200.0
             self.camera.target = np.array(self.camera.target) + delta
+            return
+        if self.in_pan_z_mode:
+            view_matrix = self.camera.matrix
+            f = np.array(view_matrix[:3, 2])
+            delta = (f * dy) * self.camera.mouse_sensitivity * self.camera.radius / 200.0
+            self.camera.target = np.array(self.camera.target) + delta
+            return
+        # normal mode
+        self.camera.rot_state(dx * 2, -dy * 2)
 
     def _hover_mouse_scroll_event_smooth(self, x_offset: float, y_offset: float):
 
-        self.camera.radius -= y_offset * self.camera.zoom_sensitivity
+        self.camera.radius -= y_offset * self.camera.zoom_sensitivity * self.camera.radius / 4.0
         self.camera.radius = max(0.1, self.camera.radius)
-        # self.camera.zoom_state(y_offset * math.sqrt(self.camera.radius) / 2.0)
 
     def _hover_key_event(self, key, action, modifiers):
         keys = g.mWindowEvent.wnd.keys
@@ -189,9 +196,15 @@ class OrbitCameraBehaviour(CameraBehaviour):
             if key == 65505:
                 # left shift
                 self._enter_pan_mode()
+            if key == 65507:
+                # left control
+                self._enter_pan_z_mode()
         elif action == keys.ACTION_RELEASE:
             if key == 65505:
                 self._exit_pan_mode()
+            if key == 65507:
+                # left control
+                self._exit_pan_z_mode()
 
     def _enter_pan_mode(self):
         self.in_pan_mode = True
@@ -199,6 +212,14 @@ class OrbitCameraBehaviour(CameraBehaviour):
 
     def _exit_pan_mode(self):
         self.in_pan_mode = False
+        CursorModule.set_default_cursor()
+
+    def _enter_pan_z_mode(self):
+        self.in_pan_z_mode = True
+        CursorModule.set_cursor(CursorModule.CursorType.CURSOR_SIZE_UP_DOWN)
+
+    def _exit_pan_z_mode(self):
+        self.in_pan_z_mode = False
         CursorModule.set_default_cursor()
 
     def unregister_events(self, x, y, button):
@@ -209,6 +230,7 @@ class OrbitCameraBehaviour(CameraBehaviour):
         # 当退出hover mode 的时候
         super().unregister_hovering_events()
         self._exit_pan_mode()
+        self._exit_pan_z_mode()
 
     @abstractmethod
     def show_debug_info(self):
@@ -223,7 +245,7 @@ class OrbitCameraBehaviour(CameraBehaviour):
                    f'ratio: {self.camera.projection.aspect_ratio:.1f} '
                    f'near:{self.camera.projection.near:.2f} '
                    f'far:{self.camera.projection.far:.1f}')
-        imgui.text(f'in_pan_mode: {self.in_pan_mode}')
+        imgui.text(f'in_pan_mode: {self.in_pan_mode} in_pan_z_mode: {self.in_pan_z_mode}')
         imgui.unindent()
 
 

@@ -1,17 +1,17 @@
+import copy
+import json
 import os
+from contextlib import contextmanager
+from functools import reduce
 
+import numpy as np
 import torch
 from torch import Tensor
-import json
 
 from gaussian_renderer import render
 from scene import GaussianModel
 from utils.arg_utils import parse_args
-import copy
-import numpy as np
 from utils.image_utils import get_pil_image
-from contextlib import contextmanager
-from functools import reduce
 
 
 def create_gaussian_from_ply(sh_degree, path):
@@ -142,7 +142,6 @@ class GaussianManager:
         self.cached_mask = mask
         return mask
 
-
     def bboxes_from_json(self, json_path, z_min, z_max):
         """
         @Jeremy
@@ -189,8 +188,6 @@ class GaussianManager:
             for bbox in region:
                 mask |= self.position_mask(*bbox)
         return mask
-
-
 
     @staticmethod
     def combine_masks(masks: list):
@@ -292,6 +289,7 @@ class GaussianManager:
         with torch.no_grad():
             print(self.gaussians._xyz[mask].shape)
             self.gaussians._xyz[mask] = points
+
     @staticmethod
     def _clear_grad(param, mask):
         if param.grad is None:

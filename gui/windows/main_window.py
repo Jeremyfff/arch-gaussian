@@ -1,8 +1,18 @@
+
+
 import logging
 import imgui
 import gui.global_var as g
-from gui.contents import PrepareContent, Train3DGSContent, Edit3DGSContent, \
-    ViewerContent, NodeEditorContent, BlankContent, GUI_CONTENT_TYPES, VerticalResizeHandleContent
+
+from gui.contents import PrepareContent
+from gui.contents import Train3DGSContent
+from gui.contents import Edit3DGSContent
+from gui.contents import ViewerContent
+from gui.contents import NodeEditorContent
+from gui.contents import BlankContent
+from gui.contents import VerticalResizeHandleContent
+from gui.contents import GUI_CONTENT_TYPES
+
 from gui.modules import EventModule, LayoutModule
 from gui.windows.base_window import BaseWindow
 

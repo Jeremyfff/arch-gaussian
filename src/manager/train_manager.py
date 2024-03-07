@@ -6,7 +6,7 @@ import random
 import uuid
 from argparse import Namespace
 from enum import Enum
-import config
+from scripts import config
 from gaussian_renderer import render
 
 from scene import GaussianModel
