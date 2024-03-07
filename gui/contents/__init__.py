@@ -7,8 +7,10 @@ from gui.contents.prepare_content import PrepareContent
 from gui.contents.train_3dgs_content import Train3DGSContent
 from gui.contents.viewer_content import ViewerContent
 from gui.contents.resize_handle_content import VerticalResizeHandleContent
+from gui.contents.main_menu_content import MainMenuContent
 
 GUI_CONTENT_TYPES = Union[
     BlankContent, Edit3DGSContent, NodeEditorContent,
-    PrepareContent, Train3DGSContent, ViewerContent, VerticalResizeHandleContent
+    PrepareContent, Train3DGSContent, ViewerContent, VerticalResizeHandleContent,
+    MainMenuContent
 ]

@@ -14,6 +14,8 @@ class NavBarWindow(BaseWindow):
 
     NAV_BUTTON_ICONS = ['stack-fill', 'rocket-2-fill', 'edit-box-fill']
     NAV_BUTTON_IDS = [f'nav_bar_icon_{i}' for i in range(len(NAV_BUTTON_ICONS))]
+    NAV_TOOLTIPS = ['PREPARE DATASET', 'TRAIN 3DGS', 'EDIT 3DGS']
+    assert len(NAV_TOOLTIPS) == len(NAV_BUTTON_ICONS)
     TRANSPARENT = (0, 0, 0, 0)
 
     @classmethod
@@ -43,6 +45,7 @@ class NavBarWindow(BaseWindow):
                 if c.icon_button(icon, bg_color=BUTTON_COLOR if i == g.mCurrNavIdx else cls.TRANSPARENT,
                                  id=cls.NAV_BUTTON_IDS[i]):
                     cls.switch_nav_idx(i)
+                c.easy_tooltip(cls.NAV_TOOLTIPS[i])
         imgui.pop_style_var(3)
 
     @classmethod

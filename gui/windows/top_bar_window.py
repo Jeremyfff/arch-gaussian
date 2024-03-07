@@ -66,7 +66,9 @@ class TopBarWindow(BaseWindow):
 
         with LayoutModule.LayoutWindow(cls.LAYOUT_NAME, flags=flags):
             # begin ===================================================================================
-            c.icon_button('bar-chart-horizontal-line', tint_color=(0.8, 0.8, 0.8, 1), tooltip='menu')
+            if c.icon_button('bar-chart-horizontal-line', tint_color=(0.8, 0.8, 0.8, 1), tooltip='menu'):
+                imgui.open_popup('main_menu_popup_on_top_bar_window')
+
             imgui.same_line()
             imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + 20)
             imgui.set_cursor_pos_y(g.mImguiStyle.window_padding[1] + g.mImguiStyle.frame_padding[1])
@@ -79,6 +81,12 @@ class TopBarWindow(BaseWindow):
                 imgui.get_cursor_pos_x() + imgui.get_content_region_available_width() - g.mImguiStyle.window_padding[
                     0] - imgui.get_frame_height())
             c.icon_button('settings-4-fill')
+
+            if imgui.begin_popup('main_menu_popup_on_top_bar_window'):
+                from gui.contents import MainMenuContent
+                MainMenuContent.c_show()
+                imgui.end_popup()
+
             # end ===================================================================================
         imgui.pop_style_var(2)
 

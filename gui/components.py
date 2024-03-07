@@ -243,3 +243,10 @@ def create_project_confirm_popup(open_flag, path):
 
 def begin_child(name, width=0.0, height=0.0, border=True, flags=imgui.WINDOW_NONE):
     imgui.begin_child(name, width, height, border=border, flags=flags)
+
+
+def quick_menu_item(label, callback=None):
+    clicked, state = imgui.menu_item(label)
+    if clicked:
+        if callback is not None:
+            callback()
