@@ -1,8 +1,9 @@
 
 # Arch Gaussian
 
-![Version 0.1](assets/image1.png "软件截图")
-![Version 0.1](assets/image2.png "软件截图")
+<img src="assets/image1.png" width="500" />
+<img src="assets/image2.png" width="500" />
+
 
 ## Install
 ```
