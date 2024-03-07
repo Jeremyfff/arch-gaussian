@@ -44,6 +44,7 @@ class BasicTrainingPage(BasePage):
         cls.cell_module.register_cell('POST SOCKET', cls.post_socket_cell)
         cls.cell_module.register_cell('GROUND TRUTH SOCKET', cls.gt_socket_cell)
         cls.cell_module.register_cell('LOSS SOCKET', cls.loss_socket_cell)
+        cls.cell_module.register_cell('TRAIN GAUSSIAN', cls.train_gaussian_cell)
 
         cls.cell_module.add_cell_to_display_queue('CONFIG')
         cls.cell_module.add_cell_to_display_queue('FIX SCENE INFO')
@@ -52,6 +53,7 @@ class BasicTrainingPage(BasePage):
         cls.cell_module.add_cell_to_display_queue('POST SOCKET')
         cls.cell_module.add_cell_to_display_queue('GROUND TRUTH SOCKET')
         cls.cell_module.add_cell_to_display_queue('LOSS SOCKET')
+        cls.cell_module.add_cell_to_display_queue('TRAIN GAUSSIAN')
 
     @classmethod
     def p_call(cls):
@@ -118,7 +120,8 @@ class BasicTrainingPage(BasePage):
 
     @classmethod
     def post_socket_cell(cls):
-        imgui.text('post socket cell')
+        imgui.text(f'has post socket = {cls._post_socket is not None}')
+        cls._show_post_socket_editor()
 
     @classmethod
     def gt_socket_cell(cls):
@@ -127,6 +130,18 @@ class BasicTrainingPage(BasePage):
     @classmethod
     def loss_socket_cell(cls):
         imgui.text('loss socket cell')
+
+    @classmethod
+    def train_gaussian_cell(cls):
+        imgui.text('train gaussian')
+        if cls._is_training_gaussian:
+            StyleModule.push_disabled_button_color()
+            imgui.button('TRAIN(RUNNING...)')
+        else:
+            StyleModule.push_highlighted_button_color()
+            if imgui.button('TRAIN'):
+                threading.Thread(target=cls._train_gaussian).start()
+        StyleModule.pop_button_color()
 
     # endregion
 
@@ -274,6 +289,7 @@ class BasicTrainingPage(BasePage):
     # endregion
 
     # region load cameras
+    _cm = None
     _train_cameras = None
     _test_cameras = None
     _is_loading_camera = False
@@ -286,8 +302,8 @@ class BasicTrainingPage(BasePage):
         from src.manager.camera_manager import CameraManager
 
         cls._is_loading_camera = True
-        cm = CameraManager()
-        cls._train_cameras, cls._test_cameras = cm.create_cameras(cls._args, cls._scene_manager.scene_info)
+        cls._cm = CameraManager()
+        cls._train_cameras, cls._test_cameras = cls._cm.create_cameras(cls._args, cls._scene_manager.scene_info)
         cls._is_loading_camera = False
 
     # endregion
@@ -310,9 +326,117 @@ class BasicTrainingPage(BasePage):
     # endregion
 
     # region sockets
+    _is_generating_post_socket = False
+    _enable_post_socket = True
+    _post_socket = None
+    _post_socket_camera_mode_list_str = ['RAW', 'STILL', 'ROTATE', 'SLOW_ROTATE']
+    _post_socket_args_camera_mode_int = 3
+    _post_socket_filename_mode_list_str = ['BY_ITERATION', 'BY_SNAP_COUNT']
+    _post_socket_args_filename_mode_int = 1
+    _post_socket_args_slow_ratio = 5.0
+    _post_socket_args_folder_name = 'snapshots'
+    _post_socket_args_iteration_gap = 100
+    _post_socket_args_first_period_iteration_gap = 10
+    _post_socket_args_first_period_end = 400
+
+    @classmethod
+    def _show_post_socket_editor(cls):
+        changed, cls._enable_post_socket = imgui.checkbox('Enable Post Socket', cls._enable_post_socket)
+        if changed:
+            if not cls._enable_post_socket and cls._post_socket is not None:
+                cls._post_socket = None
+        if not cls._enable_post_socket:
+            return
+        # when enable post socket
+        any_change = False
+        imgui.set_next_item_width(imgui.get_content_region_available_width() / 2)
+        changed, cls._post_socket_args_camera_mode_int = imgui.combo(
+            'Camera Mode', cls._post_socket_args_camera_mode_int, cls._post_socket_camera_mode_list_str)
+        any_change |= changed
+        imgui.set_next_item_width(imgui.get_content_region_available_width() / 2)
+        changed, cls._post_socket_args_filename_mode_int = imgui.combo(
+            'Filename Mode', cls._post_socket_args_filename_mode_int, cls._post_socket_filename_mode_list_str
+        )
+        any_change |= changed
+        imgui.set_next_item_width(imgui.get_content_region_available_width() / 2)
+        changed, cls._post_socket_args_slow_ratio = imgui.input_int('Slow Ratio', cls._post_socket_args_slow_ratio)
+        any_change |= changed
+        imgui.set_next_item_width(imgui.get_content_region_available_width() / 2)
+        changed, cls._post_socket_args_folder_name = imgui.input_text('Folder Name', cls._post_socket_args_folder_name)
+        any_change |= changed
+        imgui.set_next_item_width(imgui.get_content_region_available_width() / 2)
+        changed, cls._post_socket_args_iteration_gap = imgui.input_int('Iteration Gap',
+                                                                       cls._post_socket_args_iteration_gap)
+        any_change |= changed
+        imgui.set_next_item_width(imgui.get_content_region_available_width() / 2)
+        changed, cls._post_socket_args_first_period_iteration_gap = imgui.input_int(
+            'First Period Iteration Gap', cls._post_socket_args_first_period_iteration_gap
+        )
+        any_change |= changed
+        imgui.set_next_item_width(imgui.get_content_region_available_width() / 2)
+        changed, cls._post_socket_args_first_period_end = imgui.input_int(
+            'First Period End', cls._post_socket_args_first_period_end
+        )
+        any_change |= changed
+        if not cls._is_generating_post_socket:
+            if cls._post_socket is None or any_change:
+                cls._is_generating_post_socket = True
+                threading.Thread(target=cls._gen_and_use_post_socket).start()
+        else:
+            # is generating
+            imgui.text('generating post socket...')
+
+    @classmethod
+    def _gen_and_use_post_socket(cls):
+        cls._post_socket = cls._gen_post_socket()
+
+    @classmethod
+    def _gen_post_socket(cls):
+        cls._is_generating_post_socket = True
+
+        from manager.train_manager import init_snapshot, take_snapshot, SnapshotCameraMode, SnapshotFilenameMode
+        init_snapshot(0)
+
+        def post_socket(**kwargs):
+            """完成每一轮训练后的后处理内容"""
+            _iteration = kwargs['iteration']
+            take_snapshot(cls._cm, cls._gm,
+                          _camera_mode=SnapshotCameraMode.SLOW_ROTATE,
+                          _slow_ratio=5,
+                          _filename_mode=SnapshotFilenameMode.BY_SNAP_COUNT,
+                          _folder_name="snapshots",
+                          _iteration_gap=100,
+                          _first_period_iteration_gap=10,
+                          _first_period_end=400,
+                          **kwargs)
+            _gaussians = kwargs['gaussians']
+            if _iteration % 1000 == 0:
+                print(_gaussians.get_xyz.shape)
+
+        cls._is_generating_post_socket = False
+        return post_socket
+
+    @classmethod
+    def _clear_post_socket(cls):
+        cls._post_socket = None
 
     # endregion
 
     # region train
+    _is_training_gaussian = False
+    _train_gaussian_output_msg = []
 
+    @classmethod
+    def _train_gaussian(cls):
+        assert cls._args is not None
+        assert cls._gm is not None
+        assert cls._cm is not None
+        assert cls._scene_manager is not None
+        cls._is_training_gaussian = True
+        with io_utils.OutputCapture(cls._train_gaussian_output_msg):
+            from manager.train_manager import train, init_output_folder
+            init_output_folder(cls._args, cls._scene_manager.scene_info)
+        train(cls._args, cls._scene_manager.scene_info, cls._gm.gaussians, cls._train_cameras,
+              post_socket=cls._post_socket)
+        cls._is_training_gaussian = False
     # endregion
