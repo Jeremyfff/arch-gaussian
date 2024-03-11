@@ -25,6 +25,10 @@ class BaseGeometry:
     def render(self, camera: Camera):
         pass
 
+    @abstractmethod
+    def operation_panel(self):
+        pass
+
 
 class BaseGeometry3D(BaseGeometry):
     """auto update m_proj m_model m_camera"""
@@ -64,19 +68,27 @@ class BaseGeometry3D(BaseGeometry):
     def after_render(self):
         pass
 
+    @abstractmethod
+    def operation_panel(self):
+        pass
+
 
 class PointCloud(BaseGeometry3D):
-    def __init__(self, pos_arr, color_arr):
+    def __init__(self, name, pos_arr, color_arr):
         """color_arr should be in range(0, 1)"""
         if color_arr.shape[1] == 3:
-            super().__init__('point_cloud', program_path='programs/point_cloud_rgb.glsl', mode=moderngl.POINTS)
+            super().__init__(name, program_path='programs/point_cloud_rgb.glsl', mode=moderngl.POINTS)
             self.vao.buffer(pos_arr, '3f', ['in_position'])
             self.vao.buffer(color_arr, '3f', ['in_color'])
 
         else:
-            super().__init__('point_cloud', program_path='programs/point_cloud_rgba.glsl', mode=moderngl.POINTS)
+            super().__init__(name, program_path='programs/point_cloud_rgba.glsl', mode=moderngl.POINTS)
             self.vao.buffer(pos_arr, '3f', ['in_position'])
             self.vao.buffer(color_arr, '4f', ['in_color'])
+
+    @abstractmethod
+    def operation_panel(self):
+        pass
 
 
 class Line3D(BaseGeometry3D):
@@ -89,10 +101,14 @@ class Line3D(BaseGeometry3D):
         self.vao.buffer(pos_arr, '3f', ['in_position'])
         self.prog['color'].value = color
 
+    @abstractmethod
+    def operation_panel(self):
+        pass
+
 
 class Axis3D(BaseGeometry):
-    def __init__(self):
-        super().__init__('axis3d')
+    def __init__(self, name='axis3d'):
+        super().__init__(name)
         self.axis_x = Line3D(points=((0, 0, 0), (100, 0, 0)), color=(1, 0, 0, 1))
         self.axis_y = Line3D(points=((0, 0, 0), (0, 100, 0)), color=(0, 1, 0, 1))
         self.axis_z = Line3D(points=((0, 0, 0), (0, 0, 100)), color=(0, 0, 1, 1))
@@ -102,11 +118,19 @@ class Axis3D(BaseGeometry):
         self.axis_y.render(camera)
         self.axis_z.render(camera)
 
+    @abstractmethod
+    def operation_panel(self):
+        pass
+
 
 class SimpleCube(BaseGeometry3D):
-    def __init__(self, size=(1, 1, 1), color=(1.0, 1.0, 1.0, 1.0)):
-        super().__init__('cube', program_path='programs/cube_simple.glsl', vao=geometry.cube(size))
+    def __init__(self, name, size=(1, 1, 1), color=(1.0, 1.0, 1.0, 1.0)):
+        super().__init__(name, program_path='programs/cube_simple.glsl', vao=geometry.cube(size))
         self.prog['color'].value = color
+
+    @abstractmethod
+    def operation_panel(self):
+        pass
 
 
 class CubeInstance(BaseGeometry3D):
@@ -134,6 +158,10 @@ class CubeInstance(BaseGeometry3D):
     def before_render(self):
         self.prog['time'].value = g.mTime
 
+    @abstractmethod
+    def operation_panel(self):
+        pass
+
 
 class QuadFullScreen(BaseGeometry):
     def __init__(self, name, program_path):
@@ -147,8 +175,14 @@ class QuadFullScreen(BaseGeometry):
         _ = camera
         self.vao.render(self.prog)
 
+    @abstractmethod
+    def operation_panel(self):
+        pass
+
 
 class GaussianPointCloud(BaseGeometry):
+    """包裹了一个PointCloud的geometry"""
+
     def __init__(self, name):
         super().__init__(name)
         from src.manager.gaussian_manager import GaussianManager
@@ -164,6 +198,7 @@ class GaussianPointCloud(BaseGeometry):
         if self.gm is None:
             logging.warning('no gaussian manger')
             return
+        logging.info(f'updating gaussian points')
         pos_arr = self.gm.gaussians.get_xyz.detach().cpu().numpy()  # (n, 3)
         rgb_arr = self.gm.gaussians.get_features_dc.detach().cpu().numpy().squeeze(axis=1)  # (n, 3)
         alpha_arr = self.gm.gaussians.get_alpha.detach().cpu().numpy().squeeze(axis=1)
@@ -179,14 +214,15 @@ class GaussianPointCloud(BaseGeometry):
         rgba[:, 0:3] = (0.5 + SH_C0 * rgba[:, 0:3])
         rgba[:, 3] = (1 / (1 + np.exp(-rgba[:, 3])))
         rgba = np.clip(rgba, 0.0, 1.0)
-        self.gaussian_point_cloud = PointCloud(pos_arr, rgba)
+        self.gaussian_point_cloud = PointCloud(f'{self.name}_point_cloud', pos_arr, rgba)
 
     def show_debug_info(self):
-        c.bold_text(f'[{self.__class__.__name__}]')
+        c.bold_text(f'[{self.__class__.__name__}(class)]')
+
+    @abstractmethod
+    def operation_panel(self):
         if imgui.button('update gaussian points'):
             self.update_gaussian_points()
-        imgui.same_line()
-        imgui.set_next_item_width(200 * g.GLOBAL_SCALE)
         _, self.gaussian_size_threshold = imgui.slider_float('size_threshold', self.gaussian_size_threshold, 0.0, 0.1)
 
     def render(self, camera: Camera):

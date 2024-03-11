@@ -8,7 +8,6 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from gaussian_renderer import render
 from scene import GaussianModel
 from utils.arg_utils import parse_args
 from utils.image_utils import get_pil_image
@@ -51,6 +50,12 @@ class GaussianManager:
         self.bg_backup = None
         self.gaussians_backup = None
 
+        try:
+            from gaussian_renderer import render
+            self.render_module = render
+        except Exception as e:
+            self.render_module = None
+
     @contextmanager
     def virtual(self):
         # 进入代码块前执行的操作
@@ -78,8 +83,10 @@ class GaussianManager:
         self.bg_backup = self.bg
 
     def render(self, camera, convert_to_pil=False, convert_to_rgba_arr=False, convert_to_rgb_arr=False):
+        if self.render_module is None:
+            return np.zeros((camera.image_height, camera.image_width, 4), dtype=np.uint8)
         with torch.no_grad():
-            render_pkg = render(camera, self.gaussians, self.pipe, self.bg)
+            render_pkg = self.render_module(camera, self.gaussians, self.pipe, self.bg)
             image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg[
                 "viewspace_points"], \
                 render_pkg["visibility_filter"], render_pkg["radii"]
@@ -332,3 +339,4 @@ class GaussianManager:
     def alpha2feature_opacity(a):
         assert a != 0 and a != 1, "a cannot be zero or one"
         return torch.log(a / (1 - a))
+

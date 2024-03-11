@@ -17,7 +17,7 @@ class CubeSimple(CameraFBT):
     def __init__(self, name, width, height, channel=4, camera_type='orbit'):
         super().__init__(name, width, height, channel, camera_type)
 
-        self.cube = geometry.SimpleCube(size=(2, 2, 2))
+        self.cube = geometry.SimpleCube('cube', size=(2, 2, 2))
 
     def render(self, **kwargs):
         self.ctx.enable_only(moderngl.CULL_FACE | moderngl.DEPTH_TEST)
@@ -62,7 +62,7 @@ class SceneInfoRenderer(CameraFBT):
 
     def __init__(self, name, width, height, channel=4, camera_type='orbit'):
         super().__init__(name, width, height, channel, camera_type)
-        self.geometry_collection = geometry_collection.PointCloudCollection(self.camera)
+        self.geometry_collection = geometry_collection.PointCloudCollection('point_cloud_collection', self.camera)
         from gui.modules.graphic_module import SimpleTexture
         self.depth_simple_texture = SimpleTexture(width, height, channel)
 
@@ -109,8 +109,7 @@ class GaussianRenderer(CameraFBT):
     def __init__(self, name, width, height):
 
         super().__init__(name, width, height, 4, 'orbit_gaussian_camera')
-        from src.manager.gaussian_manager import GaussianManager
-        self.gm: Optional[GaussianManager] = None
+
         import torch
         self.torch = torch
         import numpy
@@ -118,24 +117,22 @@ class GaussianRenderer(CameraFBT):
 
         self.gaussian_color_attachment = g.mWindowEvent.ctx.texture((width, height), 4)  # 3dgs image
         self.gaussianFBT = FrameBufferTexture('gaussian_FBT', width, height, 4)  # 绘制3dgs 点云的画布, 取深度信息
-        self.gaussian_pt_cloud = geometry.GaussianPointCloud(self.camera)  # 3dgs点云
+        self.gaussian_collection = geometry_collection.GaussianCollection('gaussian_collection', self.camera)  # 3dgs点云
 
-        self.geometry_collection = geometry_collection.GeometryCollection(self.camera)  # 常规物体的集合
-        self.geometry_collection.add_geometry(geometry.SimpleCube(size=(0.5, 0.5, 10.0)))
+        self.geometry_collection = geometry_collection.GeometryCollection('geometry_collection', self.camera)  # 常规物体的集合
+        self.geometry_collection.add_geometry(geometry.SimpleCube('depth test cube', size=(0.5, 0.5, 10.0)))
         self.geometry_collection.add_geometry(geometry.Axis3D())
 
         self.blenderFBT = GaussianBlenderFBT('fs_FBT', width, height, 4)  # 混合渲染结果的画布
 
         # settings
-        self.debug_render_gaussian = True
+        self.debug_render_gaussian = False
         self.debug_show_gaussian_pt_cloud = False  # 打开时预览Gaussian point cloud的color attachment
         self.debug_render_time_gap = 0.05  # default 20fps
         self._last_render_time = 0.0
 
     def set_gaussian_manager(self, gm):
-        self.gm = gm
-        self.gaussian_pt_cloud.set_gaussian_manager(gm)
-        self.gaussian_pt_cloud.update_gaussian_points()
+        self.gaussian_collection.set_gaussian_manager(gm)
 
     def update_size(self, width, height):
         super().update_size(width, height)
@@ -150,7 +147,7 @@ class GaussianRenderer(CameraFBT):
             return
         # only render when time > time gap
         with self.torch.no_grad():
-            image_rgb_arr: np.ndarray = self.gm.render(self.camera, convert_to_rgba_arr=True)
+            image_rgb_arr: np.ndarray = self.gaussian_collection.render()
         self.gaussian_color_attachment.write(image_rgb_arr.tobytes())
         self._last_render_time = curr_time
 
@@ -169,7 +166,7 @@ class GaussianRenderer(CameraFBT):
         # 渲染3dgs点云数据
         self.gaussianFBT.fbo.use()
         self.gaussianFBT.fbo.clear()
-        self.gaussian_pt_cloud.render(self.camera)
+        self.gaussian_collection.render()
 
         if not self.debug_render_gaussian:
             # 如果设置中不渲染gaussian image，则到这里结束
@@ -188,6 +185,7 @@ class GaussianRenderer(CameraFBT):
         if self.debug_render_gaussian:
             # 返回混合图像
             return self.blenderFBT.texture
+        # 返回几何体
         return self.fbo.color_attachments[0]
 
     @property
@@ -195,7 +193,6 @@ class GaussianRenderer(CameraFBT):
         return self.texture.glo
 
     def show_debug_info(self):
-        imgui.set_window_font_scale(0.5)
         super().show_debug_info()
         c.bold_text(f'[{self.__class__.__name__}]')
         _, self.debug_render_gaussian = imgui.checkbox('render gaussian', self.debug_render_gaussian)
@@ -205,5 +202,5 @@ class GaussianRenderer(CameraFBT):
         imgui.same_line()
         imgui.set_next_item_width(g.GLOBAL_SCALE * 200)
         _, self.debug_render_time_gap = imgui.slider_float('render time gap', self.debug_render_time_gap, 0.0, 1.0)
-        self.gaussian_pt_cloud.show_debug_info()
-        imgui.set_window_font_scale(1.0)
+        self.gaussian_collection.show_debug_info()
+
