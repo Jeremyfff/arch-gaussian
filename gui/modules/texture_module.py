@@ -1,9 +1,9 @@
 import os
+
 import moderngl
-import imgui
+from PIL import Image, ImageDraw, ImageFont
 
 from gui import global_var as g
-from PIL import Image, ImageDraw, ImageFont
 from gui.utils import color_utils, io_utils
 
 _cached_icons: dict[str: int] = {}  # name : texture id
@@ -38,6 +38,12 @@ def update_texture(texture_id, image: Image):
 def remove_texture(texture_id):
     assert texture_id in g.mWindowEvent.imgui._textures.keys()
     g.mWindowEvent.imgui.remove_texture(g.mWindowEvent.imgui._textures[texture_id])
+
+
+def register_texture(texture):
+    g.mWindowEvent.imgui.register_texture(texture)
+
+
 
 
 _font_size = 24

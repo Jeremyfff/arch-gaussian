@@ -4,9 +4,9 @@ import imgui
 
 from gui import components as c
 from gui import global_var as g
-from gui.modules import EventModule, LayoutModule
+from gui.modules import EventModule, LayoutModule, ShadowModule
 from gui.windows.base_window import BaseWindow
-from scripts import project_manager
+from scripts.project_manager import ProjectManager
 
 
 class NavBarWindow(BaseWindow):
@@ -25,7 +25,7 @@ class NavBarWindow(BaseWindow):
     @classmethod
     def w_update(cls):
         super().w_update()
-        if g.mCurrNavIdx == -1 and project_manager.curr_project is not None:
+        if g.mCurrNavIdx == -1 and ProjectManager.curr_project is not None:
             cls.switch_nav_idx(0)
 
     @classmethod

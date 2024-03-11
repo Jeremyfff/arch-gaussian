@@ -4,10 +4,11 @@ import imgui
 
 from gui import components as c
 from gui import global_var as g
-from gui.modules import texture_module, LayoutModule
+
+from gui.modules import texture_module, LayoutModule, ShadowModule
 from gui.utils import io_utils
 from gui.windows.base_window import BaseWindow
-from scripts import project_manager as pm
+from scripts.project_manager import ProjectManager
 
 
 class TopBarWindow(BaseWindow):
@@ -40,8 +41,6 @@ class TopBarWindow(BaseWindow):
         "/path/to/AugmentedReality_Enhanced_Education",
         "/path/to/HealthTech_Wearable_Devices"
     ]
-    _confirm_create_project = False
-    _confirm_create_project_path = ''
 
     @classmethod
     def w_init(cls):
@@ -77,25 +76,34 @@ class TopBarWindow(BaseWindow):
             imgui.set_cursor_pos_y(g.mImguiStyle.window_padding[1])
             cls.show_project_button()
             imgui.same_line()
+            if imgui.button('texture viewer'):
+                from gui.windows import TextureViewerWindow
+                TextureViewerWindow.w_open()
+            imgui.same_line()
             imgui.set_cursor_pos_x(
                 imgui.get_cursor_pos_x() + imgui.get_content_region_available_width() - g.mImguiStyle.window_padding[
                     0] - imgui.get_frame_height())
-            c.icon_button('settings-4-fill')
-
+            if c.icon_button('settings-4-fill'):
+                from gui.windows import SettingsWindow
+                SettingsWindow.w_open()
             if imgui.begin_popup('main_menu_popup_on_top_bar_window'):
                 from gui.contents import MainMenuContent
                 MainMenuContent.c_show()
                 imgui.end_popup()
-
             # end ===================================================================================
         imgui.pop_style_var(2)
 
     @classmethod
     def show_project_button(cls):
-        button_content = 'Create or Open Project' if pm.curr_project is None else pm.curr_project.project_name
-        button_icon = 'play-list-add-line' if pm.curr_project is None else texture_module.generate_character_icon(
-            pm.curr_project.project_name.upper()[0])
-        button_tooltip = 'Click To Open' if pm.curr_project is None else pm.curr_project.project_root
+        _confirm_create_project = False
+        _confirm_create_project_path = ''
+
+        button_content = 'Create or Open Project' if ProjectManager.curr_project is None \
+            else ProjectManager.get_curr_project_name()
+        button_icon = 'play-list-add-line' if ProjectManager.curr_project is None \
+            else texture_module.generate_character_icon(ProjectManager.get_curr_project_name().upper()[0])
+        button_tooltip = 'Click To Open' if ProjectManager.curr_project is None \
+            else ProjectManager.get_curr_project_root()
         cursor_pos = imgui.get_cursor_pos()
         popup_cursor_pos = (cursor_pos[0], cursor_pos[1] + LayoutModule.layout.get_size(cls.LAYOUT_NAME)[1])
         # project button
@@ -109,31 +117,27 @@ class TopBarWindow(BaseWindow):
         if imgui.begin_popup('project_button_popup'):
             imgui.push_style_color(imgui.COLOR_BUTTON, 0, 0, 0, 0)
             imgui.push_style_var(imgui.STYLE_BUTTON_TEXT_ALIGN, (0.0, 0.5))
-            if pm.curr_project is not None:
-                imgui.text(pm.curr_project.project_root)
+            if ProjectManager.curr_project is not None:
+                imgui.text(ProjectManager.curr_project.project_root)
                 # save project button
                 if c.icon_text_button('save-line', 'Save Project', width=imgui.get_content_region_available_width()):
-                    pm.curr_project.save()
+                    ProjectManager.curr_project.p_save()
                     imgui.close_current_popup()
             # open project button
             if c.icon_text_button('folder-open-line', 'Open Project', width=imgui.get_content_region_available_width()):
                 folder_path = io_utils.open_folder_dialog()
                 if folder_path:
-                    project = pm.Project.open_folder_as_project(folder_path)
-                    if project is None:
-                        # project not created yet
-                        cls._confirm_create_project_path = folder_path
-                        cls._confirm_create_project = True
-                    else:
-                        pm.curr_project = project
+                    project = ProjectManager.open_folder_as_project(folder_path)
+                    if project is None:  # project not created yet
+                        _confirm_create_project_path = folder_path
+                        _confirm_create_project = True
                 imgui.close_current_popup()
             # create project button
             if c.icon_text_button('folder-add-line', 'Create Project',
                                   width=imgui.get_content_region_available_width()):
                 folder_path = io_utils.open_folder_dialog()
                 if folder_path:
-                    project = pm.Project.create_project(os.path.basename(folder_path), folder_path)
-                    pm.curr_project = project
+                    ProjectManager.create_project(os.path.basename(folder_path), folder_path)
                 imgui.close_current_popup()
             imgui.separator()
             # recent projects
@@ -150,4 +154,4 @@ class TopBarWindow(BaseWindow):
             imgui.pop_style_var()
             imgui.end_popup()
         # create project confirm popup
-        c.create_project_confirm_popup(cls._confirm_create_project, cls._confirm_create_project_path)
+        c.create_project_confirm_popup(_confirm_create_project, _confirm_create_project_path)

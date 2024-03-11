@@ -297,7 +297,7 @@ class AnimatedPageGroup:
         imgui.pop_style_color()
         imgui.same_line()
         imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + imgui.get_content_region_available_width() - imgui.get_frame_height_with_spacing())
-        if c.icon_button('settings-4-fill'):
+        if c.icon_button('more-2-fill'):
             imgui.open_popup('pages settings')
         if imgui.begin_popup('pages settings'):
             clicked, state = imgui.menu_item('reload all pages')

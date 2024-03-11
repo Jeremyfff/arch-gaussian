@@ -6,11 +6,11 @@ from gui import global_var as g
 from gui.contents import pages
 from gui.contents.base_content import BaseContent
 from gui.modules.animation_module import AnimatedPageGroup
-from scripts import project_manager as pm
+from scripts.project_manager import ProjectManager
 
 
 class Train3DGSContent(BaseContent):
-    page_group:Optional[AnimatedPageGroup] = None
+    page_group: Optional[AnimatedPageGroup] = None
 
     @classmethod
     def c_init(cls):
@@ -18,6 +18,8 @@ class Train3DGSContent(BaseContent):
         cls.page_group = AnimatedPageGroup(vertical=True)
         cls.page_group.add_page_obj(pages.Train3DGSMainPage)
         cls.page_group.add_page_obj(pages.BasicTrainingPage)
+        cls.page_group.add_page_obj(pages.FullTrainingPage)
+        cls.page_group.add_page_obj(pages.SimpleViewerPage)
 
     @classmethod
     def c_update(cls):
@@ -26,7 +28,7 @@ class Train3DGSContent(BaseContent):
     @classmethod
     def c_show(cls):
         super().c_show()
-        if pm.curr_project is None:
+        if ProjectManager.curr_project is None:
             imgui.text('Please Open A Project First')
             return
         imgui.push_style_var(imgui.STYLE_FRAME_PADDING,

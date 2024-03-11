@@ -32,5 +32,6 @@ in vec3 normal;
 void main() {
     float l = dot(normalize(-pos), normalize(normal));
     fragColor = color * (0.25 + abs(l) * 0.75);
+    fragColor.a = 1.0;
 }
 #endif

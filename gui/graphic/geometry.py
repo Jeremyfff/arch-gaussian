@@ -1,7 +1,9 @@
+import logging
 import math
 from abc import abstractmethod
 from typing import Optional
 
+import imgui
 import moderngl
 import numpy as np
 from moderngl_window import geometry
@@ -9,6 +11,7 @@ from moderngl_window.opengl.vao import VAO
 from moderngl_window.scene.camera import Camera
 from pyrr import Matrix44
 
+from gui import components as c
 from gui import global_var as g
 
 
@@ -16,6 +19,7 @@ class BaseGeometry:
     @abstractmethod
     def __init__(self, name):
         self.name = name
+        self.active = True
 
     @abstractmethod
     def render(self, camera: Camera):
@@ -49,6 +53,7 @@ class BaseGeometry3D(BaseGeometry):
         rotation = Matrix44.from_eulers(self.rotation, dtype='f4')
         translation = Matrix44.from_translation(self.translation, dtype='f4')
         model_view = self.world_matrix * translation * rotation
+        # model_view = translation * rotation
         self.prog['m_proj'].write(camera.projection.matrix)
         self.prog['m_model'].write(model_view)
         self.prog['m_camera'].write(camera.matrix)
@@ -62,6 +67,7 @@ class BaseGeometry3D(BaseGeometry):
 
 class PointCloud(BaseGeometry3D):
     def __init__(self, pos_arr, color_arr):
+        """color_arr should be in range(0, 1)"""
         if color_arr.shape[1] == 3:
             super().__init__('point_cloud', program_path='programs/point_cloud_rgb.glsl', mode=moderngl.POINTS)
             self.vao.buffer(pos_arr, '3f', ['in_position'])
@@ -86,6 +92,7 @@ class Line3D(BaseGeometry3D):
 
 class Axis3D(BaseGeometry):
     def __init__(self):
+        super().__init__('axis3d')
         self.axis_x = Line3D(points=((0, 0, 0), (100, 0, 0)), color=(1, 0, 0, 1))
         self.axis_y = Line3D(points=((0, 0, 0), (0, 100, 0)), color=(0, 1, 0, 1))
         self.axis_z = Line3D(points=((0, 0, 0), (0, 0, 100)), color=(0, 0, 1, 1))
@@ -126,3 +133,61 @@ class CubeInstance(BaseGeometry3D):
 
     def before_render(self):
         self.prog['time'].value = g.mTime
+
+
+class QuadFullScreen(BaseGeometry):
+    def __init__(self, name, program_path):
+        super().__init__(name)
+
+        self.vao: VAO = geometry.quad_fs()
+        self.prog = g.mWindowEvent.load_program(program_path)
+        self.ctx = g.mWindowEvent.ctx
+
+    def render(self, camera: None):
+        _ = camera
+        self.vao.render(self.prog)
+
+
+class GaussianPointCloud(BaseGeometry):
+    def __init__(self, name):
+        super().__init__(name)
+        from src.manager.gaussian_manager import GaussianManager
+
+        self.gm: Optional[GaussianManager] = None
+        self.gaussian_point_cloud: Optional[PointCloud] = None
+        self.gaussian_size_threshold = 0.001
+
+    def set_gaussian_manager(self, gaussian_manager):
+        self.gm = gaussian_manager
+
+    def update_gaussian_points(self):
+        if self.gm is None:
+            logging.warning('no gaussian manger')
+            return
+        pos_arr = self.gm.gaussians.get_xyz.detach().cpu().numpy()  # (n, 3)
+        rgb_arr = self.gm.gaussians.get_features_dc.detach().cpu().numpy().squeeze(axis=1)  # (n, 3)
+        alpha_arr = self.gm.gaussians.get_alpha.detach().cpu().numpy().squeeze(axis=1)
+        size_arr = self.gm.gaussians.get_scaling.detach().cpu().numpy()
+        print(f'before: {len(pos_arr)}')
+        non_zero_mask = np.all(size_arr > self.gaussian_size_threshold, axis=1)
+        pos_arr = pos_arr[non_zero_mask]
+        rgb_arr = rgb_arr[non_zero_mask]
+        alpha_arr = alpha_arr[non_zero_mask]
+        print(f'after: {len(pos_arr)}')
+        rgba = np.hstack((rgb_arr, alpha_arr.reshape(-1, 1)))
+        SH_C0 = 0.28209479177387814
+        rgba[:, 0:3] = (0.5 + SH_C0 * rgba[:, 0:3])
+        rgba[:, 3] = (1 / (1 + np.exp(-rgba[:, 3])))
+        rgba = np.clip(rgba, 0.0, 1.0)
+        self.gaussian_point_cloud = PointCloud(pos_arr, rgba)
+
+    def show_debug_info(self):
+        c.bold_text(f'[{self.__class__.__name__}]')
+        if imgui.button('update gaussian points'):
+            self.update_gaussian_points()
+        imgui.same_line()
+        imgui.set_next_item_width(200 * g.GLOBAL_SCALE)
+        _, self.gaussian_size_threshold = imgui.slider_float('size_threshold', self.gaussian_size_threshold, 0.0, 0.1)
+
+    def render(self, camera: Camera):
+        self.gaussian_point_cloud.render(camera)

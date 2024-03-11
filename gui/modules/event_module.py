@@ -179,3 +179,33 @@ class EventModule(BaseModule):
     def on_scene_manager_changed(cls, scene_manager):
         for func in cls._scene_manager_change_callbacks:
             func(scene_manager)
+
+    _gaussian_manager_change_callbacks = set()
+
+    @classmethod
+    def register_gaussian_manager_change_callback(cls, func: Callable):
+        cls._gaussian_manager_change_callbacks.add(func)
+
+    @classmethod
+    def unregister_gaussian_manager_change_callback(cls, func):
+        cls._gaussian_manager_change_callbacks.remove(func)
+
+    @classmethod
+    def on_gaussian_manager_changed(cls, gaussian_manager):
+        for func in cls._gaussian_manager_change_callbacks:
+            func(gaussian_manager)
+
+    _camera_manager_change_callbacks = set()
+
+    @classmethod
+    def register_camera_manager_change_callback(cls, func: Callable):
+        cls._camera_manager_change_callbacks.add(func)
+
+    @classmethod
+    def unregister_camera_manager_change_callback(cls, func):
+        cls._camera_manager_change_callbacks.remove(func)
+
+    @classmethod
+    def on_camera_manager_changed(cls, camera_manager):
+        for func in cls._camera_manager_change_callbacks:
+            func(camera_manager)

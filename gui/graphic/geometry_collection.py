@@ -8,12 +8,14 @@ from gui import components as c
 from gui.graphic import geometry
 from gui.graphic.geometry import BaseGeometry, BaseGeometry3D
 
+SUPPORTED_GEO_TYPES = Union[BaseGeometry, BaseGeometry3D]
+
 
 class GeometryCollection:
 
     def __init__(self, camera):
         self.camera = camera
-        self.geometries: set[Union[BaseGeometry, BaseGeometry3D]] = set()
+        self.geometries: set[SUPPORTED_GEO_TYPES] = set()
 
     def add_geometry(self, geo):
         self.geometries.add(geo)
@@ -37,7 +39,8 @@ class GeometryCollection:
 
     def render(self):
         for geo in self.geometries:
-            geo.render(self.camera)
+            if geo.active:
+                geo.render(self.camera)
 
     @abstractmethod
     def show_debug_info(self):

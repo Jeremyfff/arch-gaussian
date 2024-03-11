@@ -43,8 +43,8 @@ class VerticalResizeHandleContent(BaseContent):
             cls.HIGHLIGHTED_HANDLE_COLOR if cls.is_in_cursor_region else cls.NORMAL_HANDLE_COLOR,
             draw_list_type='foreground'
         )
-        _, cls.is_in_cursor_region = cls.cursor_region.update(region_min - cls.REGION_OFFSET,
-                                                              region_max + cls.REGION_OFFSET)
+        _, cls.is_in_cursor_region = cls.cursor_region.update(
+            region_min - cls.REGION_OFFSET, region_max + cls.REGION_OFFSET)
 
     @classmethod
     def c_on_show(cls):
@@ -62,18 +62,21 @@ class VerticalResizeHandleContent(BaseContent):
 
     @classmethod
     def on_mouse_press(cls, x: int, y: int, button: int):
+        _ = x, y, button
         if not cls.is_in_cursor_region:
             return
         cls.can_drag = True
 
     @classmethod
     def on_mouse_release(cls, x: int, y: int, button: int):
+        _ = x, y, button
         if cls.can_drag:
             cls.can_drag = False
             EventModule.resize(*g.mWindowEvent.window_size)  # 触发resize
 
     @classmethod
     def on_mouse_drag(cls, x: int, y: int, dx: int, dy: int):
+        _ = x, y, dy
         if not cls.can_drag:
             return
         resizable_layout = LayoutModule.vertical_resizable_layout

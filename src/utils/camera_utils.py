@@ -59,11 +59,12 @@ def loadCam(args, id, cam_info, resolution_scale):
 
 
 def cameraList_from_camInfos(cam_infos, resolution_scale, args):
+    from src.utils import progress_utils as pu
+    pu.new_progress(len(cam_infos))
     camera_list = []
-
     for id, c in tqdm(enumerate(cam_infos)):
         camera_list.append(loadCam(args, id, c, resolution_scale))
-
+        pu.update(1)
     return camera_list
 
 

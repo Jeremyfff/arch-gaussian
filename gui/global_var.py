@@ -14,7 +14,7 @@ FONT_SIZE = 16 * GLOBAL_SCALE
 mTime = 0
 mFrametime = 1e-5
 mFirstLoop = True
-mWindowEvent: Optional[mglw.WindowConfig] = None
+mWindowEvent: 'WindowEvents' = None
 mWindowSize = (0, 0)
 
 # [FONTS] (set in GUI.py)
@@ -28,3 +28,6 @@ mImguiStyle: Optional[imgui.core.GuiStyle] = None
 
 # nav bar
 mCurrNavIdx = -1
+
+# shared texture
+mSharedTexture = None  # 显示在texture viewer的texture

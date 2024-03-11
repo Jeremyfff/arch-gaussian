@@ -7,7 +7,7 @@ from gui import global_var as g
 from gui.contents.base_content import BaseContent
 from gui.modules import StyleModule
 from gui.utils import io_utils
-from scripts import project_manager as pm
+from scripts.project_manager import ProjectManager
 
 welcome_text = """ Introducing the all-new EchoSphere Smart Speaker – your gateway to a seamless smart home experience.
 Experience the power of voice control with EchoSphere, your personal assistant that responds to your every command. 
@@ -77,11 +77,11 @@ class BlankContent(BaseContent):
         imgui.text_wrapped(welcome_text)
         imgui.pop_style_color()
 
-    _confirm_create_project_path = ''
-    _confirm_create_project = False
-
     @classmethod
     def _right_part_content(cls):
+        _confirm_create_project_path = ''
+        _confirm_create_project = False
+
         imgui.push_style_var(imgui.STYLE_ITEM_SPACING, (4, 10 * g.GLOBAL_SCALE))
         imgui.push_style_var(imgui.STYLE_FRAME_PADDING,
                              (g.mImguiStyle.frame_padding[0] * 2, g.mImguiStyle.window_padding[1] * 2))
@@ -94,21 +94,17 @@ class BlankContent(BaseContent):
         if c.icon_text_button('folder-add-line', 'New Project...', imgui.get_content_region_available_width()):
             folder_path = io_utils.open_folder_dialog()
             if folder_path:
-                project = pm.Project.create_project(os.path.basename(folder_path), folder_path)
-                pm.curr_project = project
+                ProjectManager.create_project(os.path.basename(folder_path), folder_path)
         if c.icon_text_button('folder-open-line', 'Open Project...', imgui.get_content_region_available_width()):
             folder_path = io_utils.open_folder_dialog()
             if folder_path:
-                project = pm.Project.open_folder_as_project(folder_path)
-                if project is None:
-                    # project not created yet
+                project = ProjectManager.open_folder_as_project(folder_path)
+                if project is None:  # project not created yet
                     _confirm_create_project_path = folder_path
                     _confirm_create_project = True
-                else:
-                    pm.curr_project = project
         imgui.separator()
         c.icon_text_button('git-repository-line', 'Open Repository...', imgui.get_content_region_available_width())
         imgui.pop_style_var(2)
 
         # create project confirm popup
-        c.create_project_confirm_popup(cls._confirm_create_project, cls._confirm_create_project_path)
+        c.create_project_confirm_popup(_confirm_create_project, _confirm_create_project_path)

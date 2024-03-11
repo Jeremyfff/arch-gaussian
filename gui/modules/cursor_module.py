@@ -82,6 +82,7 @@ class CursorModule(BaseModule):
         def update(self, region_min, region_max):
             """return tuple(changed, in_region)"""
             imgui_mouse_hovering_rect = imgui.is_mouse_hovering_rect(*region_min, *region_max, False)
+            imgui_mouse_hovering_rect &= not imgui.is_any_item_hovered()
             changed = False
             if imgui_mouse_hovering_rect and not self.in_region:
                 # enter region
