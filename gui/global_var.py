@@ -1,7 +1,6 @@
 from typing import Optional
 
 import imgui
-import moderngl_window as mglw
 
 # 仅仅储存与ui相关的内容
 
@@ -31,3 +30,5 @@ mCurrNavIdx = -1
 
 # shared texture
 mSharedTexture = None  # 显示在texture viewer的texture
+
+mLastFileDir = r'c://'

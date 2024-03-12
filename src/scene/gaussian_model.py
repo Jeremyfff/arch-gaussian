@@ -46,15 +46,15 @@ class GaussianModel:
     def __init__(self, sh_degree: int):
         self.active_sh_degree = 0
         self.max_sh_degree = sh_degree
-        self._xyz = torch.empty(0, device='cuda')
-        self._features_dc = torch.empty(0, device='cuda')
-        self._features_rest = torch.empty(0, device='cuda')
-        self._scaling = torch.empty(0, device='cuda')
-        self._rotation = torch.empty(0, device='cuda')
-        self._opacity = torch.empty(0, device='cuda')
-        self.max_radii2D = torch.empty(0, device='cuda')
-        self.xyz_gradient_accum = torch.empty(0, device='cuda')
-        self.denom = torch.empty(0, device='cuda')
+        self._xyz = torch.empty(0, device='cuda')  # [n, 3]
+        self._features_dc = torch.empty(0, device='cuda')  # [n, 1, 3]
+        self._features_rest = torch.empty(0, device='cuda')  # [n, 15, 3]
+        self._scaling = torch.empty(0, device='cuda')  # [n, 3]
+        self._rotation = torch.empty(0, device='cuda')  # [n, 4]
+        self._opacity = torch.empty(0, device='cuda')  # [n, 1]
+        self.max_radii2D = torch.empty(0, device='cuda')  # [n, ]
+        self.xyz_gradient_accum = torch.empty(0, device='cuda') # 0
+        self.denom = torch.empty(0, device='cuda') # 0
         self.optimizer = None
         self.percent_dense = 0
         self.spatial_lr_scale = 0

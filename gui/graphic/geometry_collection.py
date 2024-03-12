@@ -1,5 +1,6 @@
 import copy
 import logging
+import uuid
 from abc import abstractmethod
 from typing import Union, Optional
 
@@ -7,6 +8,7 @@ import imgui
 import numpy as np
 
 from gui import components as c
+from gui import global_var as g
 from gui.graphic import geometry
 from gui.graphic.geometry import BaseGeometry, BaseGeometry3D
 
@@ -78,7 +80,7 @@ class PointCloudCollection(GeometryCollection):
         self._debug_num_points = len(pos_arr)
 
     def operation_panel(self):
-        pass
+        imgui.text('nothing to show for PointCloudCollection')
 
     def show_debug_info(self):
         c.bold_text(f'[{self.__class__.__name__}]')
@@ -91,37 +93,56 @@ class GaussianCollection(GeometryCollection):
         super().__init__(name, camera)
         from src.manager.gaussian_manager import GaussianManager
         self.final_gm: Optional[GaussianManager] = None
-        self.gs_pt_cloud_list: list[geometry.GaussianPointCloud] = []
         import torch
         self.torch = torch
 
+        self.geometries: list[geometry.GaussianPointCloud] = []  # 指定类型用
+        self._geometries_to_delete = set()  # 将要被删除的geo
+
     def set_gaussian_manager(self, gm):
-        """兼容GaussianPointCloud, 一般在一个gm的时候使用"""
-        gs_pt_cloud = geometry.GaussianPointCloud('gaussian_point_cloud')
-        gs_pt_cloud.set_gaussian_manager(gm)
-        gs_pt_cloud.update_gaussian_points()
-        self.gs_pt_cloud_list = [gs_pt_cloud]
+        """兼容GaussianPointCloud, 一般在一个gm的时候使用
+        如果gm为None， 则清空场景的geometries"""
+        self.geometries = []
+        if gm is not None:
+            self.add_gaussian_manager(gm)
+        self.merge_gaussian()
 
-    def update_gaussian_points(self):
-        for gs_pt_cloud in self.gs_pt_cloud_list:
-            gs_pt_cloud.update_gaussian_points()
-
-    def add_gaussian_manager(self, name, gm):
+    def add_gaussian_manager(self, gm, name=None):
+        if gm is None:
+            return
+        if name is None:
+            name = str(uuid.uuid4())
         gs_pt_cloud = geometry.GaussianPointCloud(name)
         gs_pt_cloud.set_gaussian_manager(gm)
         gs_pt_cloud.update_gaussian_points()
-        self.gs_pt_cloud_list.append(gs_pt_cloud)
+        self.add_geometry(gs_pt_cloud)
         return gs_pt_cloud
 
+    def add_gaussian_from_file(self, file_path=None):
+        if file_path is None:
+            from gui.utils.io_utils import open_file_dialog
+            file_path = open_file_dialog()
+        if file_path == '':
+            return
+        from src.manager.gaussian_manager import GaussianManager
+        from gui.contents.pages.train_3dgs_pages import FullTrainingPage
+        args = FullTrainingPage.gen_config_args()
+        try:
+            self.add_gaussian_manager(GaussianManager(args, None, file_path))
+        except Exception as e:
+            logging.error(e)
+
     def merge_gaussian(self):
-        if len(self.gs_pt_cloud_list) == 0:
+        if len(self.geometries) == 0:
             logging.warning('no gaussian pt cloud in this collection')
+            self.final_gm = None
             return
-        if len(self.gs_pt_cloud_list) == 1:
-            self.final_gm = self.gs_pt_cloud_list[0].gm
+        if len(self.geometries) == 1:
+            self.final_gm = self.geometries[0].gm
             return
+        logging.info('merging gaussian')
         with self.torch.no_grad():
-            self.final_gm = copy.deepcopy(self.gs_pt_cloud_list[0].gm)
+            self.final_gm = copy.deepcopy(self.geometries[0].gm)
             final_xyz_list = []
             final_features_dc_list = []
             final_features_rest_list = []
@@ -129,9 +150,7 @@ class GaussianCollection(GeometryCollection):
             final_rotation_list = []
             final_opacity_list = []
             final_max_radii2D_list = []
-            final_xyz_gradient_accum_list = []
-            final_denom_list = []
-            for i, gs_pt_cloud in enumerate(self.gs_pt_cloud_list):
+            for i, gs_pt_cloud in enumerate(self.geometries):
                 gaussians = gs_pt_cloud.gm.gaussians
                 final_xyz_list.append(gaussians._xyz.detach())
                 final_features_dc_list.append(gaussians._features_dc.detach())
@@ -139,9 +158,7 @@ class GaussianCollection(GeometryCollection):
                 final_scaling_list.append(gaussians._scaling.detach())
                 final_rotation_list.append(gaussians._rotation.detach())
                 final_opacity_list.append(gaussians._opacity.detach())
-                final_max_radii2D_list.append(gaussians._max_radii2D.detach())
-                final_xyz_gradient_accum_list.append(gaussians._xyz_gradient_accum.detach())
-                final_denom_list.append(gaussians._denom.detach())
+                final_max_radii2D_list.append(gaussians.max_radii2D.detach())
 
             self.final_gm.gaussians._xyz = self.torch.cat(final_xyz_list, dim=0)
             self.final_gm.gaussians._features_dc = self.torch.cat(final_features_dc_list, dim=0)
@@ -149,30 +166,57 @@ class GaussianCollection(GeometryCollection):
             self.final_gm.gaussians._scaling = self.torch.cat(final_scaling_list, dim=0)
             self.final_gm.gaussians._rotation = self.torch.cat(final_rotation_list, dim=0)
             self.final_gm.gaussians._opacity = self.torch.cat(final_opacity_list, dim=0)
-            self.final_gm.gaussians._max_radii2D = self.torch.cat(final_max_radii2D_list, dim=0)
-            self.final_gm.gaussians._xyz_gradient_accum = self.torch.cat(final_xyz_gradient_accum_list, dim=0)
-            self.final_gm.gaussians._denom = self.torch.cat(final_denom_list, dim=0)
+            self.final_gm.gaussians.max_radii2D = self.torch.cat(final_max_radii2D_list, dim=0)
 
-    def render(self):
-        assert self.final_gm is not None
+    def render_gaussian(self) -> Optional[np.ndarray]:
+        if self.final_gm is None:
+            return None
         return self.final_gm.render(self.camera, convert_to_rgba_arr=True)
 
+    def render(self):
+        super().render()
+
     def operation_panel(self):
-        imgui.button('add gaussian manager')
-        imgui.button('delete gaussian manager')
-        if imgui.button('merge_gaussian'):
+        changed = False
+        c.bold_text(f'[{self.__class__.__name__}]')
+        if c.icon_text_button('file-add-fill', 'Add Gaussian'):
+            self.add_gaussian_from_file()
+            changed |= True
+        c.easy_tooltip('Add Gaussian From Ply file')
+        imgui.same_line()
+        if c.icon_text_button('stack-fill', 'Merge Gaussian'):
             self.merge_gaussian()
-        for ps_pt_cloud in self.gs_pt_cloud_list:
-            c.bold_text(ps_pt_cloud.name)
-            ps_pt_cloud.operation_panel()
-            imgui.separator()
+        c.easy_tooltip('Merge Gaussian Manually')
+        imgui.separator()
+        imgui.text('GAUSSIANS')
+        c.begin_child(f'{self.name}_child', 0, 200 * g.GLOBAL_SCALE, border=True)
+        self._geometries_to_delete.clear()  # 清空删除列表
+        for gs_pt_cloud in self.geometries:
+            if imgui.begin_menu(gs_pt_cloud.name).opened:
+                changed, delete_self = gs_pt_cloud.operation_panel()
+                if delete_self:
+                    # 加入删除列表
+                    self._geometries_to_delete.add(gs_pt_cloud)
+                imgui.end_menu()
+        imgui.end_child()
+        # 删除逻辑
+        for gs_pt_cloud in self._geometries_to_delete:
+            self.remove_geometry(gs_pt_cloud)
+        # merge
+        if changed:
+            self.merge_gaussian()
 
     def show_debug_info(self):
         c.bold_text(f'[{self.__class__.__name__}]')
+        imgui.same_line()
+        imgui.text(f'final_gm: {self.final_gm is not None}')
+        imgui.same_line()
         if imgui.button('show operation_panel'):
             imgui.open_popup('op_panel')
-        for ps_pt_cloud in self.gs_pt_cloud_list:
-            ps_pt_cloud.show_debug_info()
         if imgui.begin_popup('op_panel'):
             self.operation_panel()
             imgui.end_popup()
+        # imgui.indent()
+        # for ps_pt_cloud in self.geometries:
+        #     ps_pt_cloud.show_debug_info()
+        # imgui.unindent()

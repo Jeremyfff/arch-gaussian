@@ -1,6 +1,8 @@
 import logging
+import os
 import threading
 from argparse import Namespace
+from typing import Optional
 
 import imgui
 
@@ -38,8 +40,9 @@ class Train3DGSMainPage(BasePage):
 class FullTrainingPage(BasePage):
     page_name = 'full training'
     page_level = 1
-
     cell_module = CellModule()
+
+    ViewerContentModule: Optional[any] = None
 
     @classmethod
     def p_init(cls):
@@ -52,6 +55,7 @@ class FullTrainingPage(BasePage):
         cls.cell_module.register_cell('LOSS SOCKET', cls.loss_socket_cell)
         cls.cell_module.register_cell('TRAIN GAUSSIAN', cls.train_gaussian_cell)
         cls.cell_module.register_cell('RESULT VIEWER', cls.result_viewer_cell)
+        cls.cell_module.register_cell('OPERATION PANEL', cls.operation_panel_cell)
 
         cls.cell_module.add_cell_to_display_queue('CONFIG')
         cls.cell_module.add_cell_to_display_queue('FIX SCENE INFO')
@@ -62,6 +66,10 @@ class FullTrainingPage(BasePage):
         cls.cell_module.add_cell_to_display_queue('LOSS SOCKET')
         cls.cell_module.add_cell_to_display_queue('TRAIN GAUSSIAN')
         cls.cell_module.add_cell_to_display_queue('RESULT VIEWER')
+        cls.cell_module.add_cell_to_display_queue('OPERATION PANEL')
+
+        from gui.contents import ViewerContent
+        cls.ViewerContentModule = ViewerContent
 
     @classmethod
     def p_call(cls):
@@ -167,32 +175,43 @@ class FullTrainingPage(BasePage):
         StyleModule.pop_button_color()
         imgui.progress_bar(cls._train_progress, (imgui.get_content_region_available_width(), 10 * g.GLOBAL_SCALE))
 
-    _curr_selected_iteration_folder_idx = -1
+    _curr_selected_iteration_folder_idx = 0
 
     @classmethod
     def result_viewer_cell(cls):
         imgui.text('result viewer')
         if c.icon_text_button('refresh-line', 'Refresh Info'):
             ProjectManager.curr_project.scan_output()
-            cls._curr_selected_iteration_folder_idx = -1
+            cls._curr_selected_iteration_folder_idx = 0
         output_iteration_folders: list = ProjectManager.curr_project.info['output_iteration_folder_names']
+        output_iteration_folder_paths = ProjectManager.curr_project.info['output_iteration_folder_paths']
         changed, cls._curr_selected_iteration_folder_idx = imgui.listbox(
             '', cls._curr_selected_iteration_folder_idx,
             output_iteration_folders)
-        if cls._scene_manager is None:
-            c.gray_text('load scene manager first!')
         if imgui.button('LOAD GAUSSIAN'):
             try:
-                assert cls._scene_manager is not None
                 from src.manager.gaussian_manager import GaussianManager
-                args = cls._gen_config_args()
+                args = cls.gen_config_args()
                 selected_folder_name = output_iteration_folders[cls._curr_selected_iteration_folder_idx]
+                selected_folder_path = output_iteration_folder_paths[cls._curr_selected_iteration_folder_idx]
                 loaded_iteration = int(selected_folder_name.replace('iteration_', ''))
+                ply_path = os.path.join(selected_folder_path, 'point_cloud.ply')
                 args.loaded_iter = loaded_iteration
-                cls._gm = GaussianManager(args, cls._scene_manager.scene_info)
+                cls._gm = GaussianManager(args, scene_info=None, custom_ply_path=ply_path)
                 cls._is_gaussian_changed_in_frame = True  # mark as True to call events
             except Exception as e:
                 logging.error(e)
+        if imgui.button('CREATE EMPTY GAUSSIAN SCENE'):
+            cls._gm = None
+            cls._is_gaussian_changed_in_frame = True
+
+    @classmethod
+    def operation_panel_cell(cls):
+        imgui.text('operation panel')
+        if cls.ViewerContentModule is None:
+            imgui.text('no viewer content module')
+            return
+        cls.ViewerContentModule.operation_panel()
 
     # endregion
 
@@ -202,10 +221,10 @@ class FullTrainingPage(BasePage):
     def _show_config_args_editor(cls):
         any_change = c.arg_editor(cls._args_dict, cls._args_type_dict)
         if cls._args is None or any_change:
-            cls._args = cls._gen_config_args()
+            cls._args = cls.gen_config_args()
 
     @classmethod
-    def _gen_config_args(cls):
+    def gen_config_args(cls):
         args = Namespace(
             sh_degree=3,
             source_path=ProjectManager.curr_project.get_info('data_root'),
@@ -291,7 +310,7 @@ class FullTrainingPage(BasePage):
         # in thread
         # 创建scene info
         if cls._args is None:
-            cls._args = cls._gen_config_args()
+            cls._args = cls.gen_config_args()
         pu.create_contex('_fix_scene', cls._update_fix_scene_progress)
         pu.new_progress(3)
         cls._fix_scene_output_msg = []
@@ -512,5 +531,9 @@ class SimpleViewerPage(FullTrainingPage):
     def p_init(cls):
         cls.cell_module.register_cell('FIX SCENE INFO', cls.fix_scene_cell)
         cls.cell_module.register_cell('RESULT VIEWER', cls.result_viewer_cell)
+        cls.cell_module.register_cell('OPERATION PANEL', cls.operation_panel_cell)
         cls.cell_module.add_cell_to_display_queue('FIX SCENE INFO')
         cls.cell_module.add_cell_to_display_queue('RESULT VIEWER')
+        cls.cell_module.add_cell_to_display_queue('OPERATION PANEL')
+        from gui.contents import ViewerContent
+        cls.ViewerContentModule = ViewerContent

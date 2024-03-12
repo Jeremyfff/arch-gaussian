@@ -1,5 +1,4 @@
 import time
-from typing import Optional
 
 import imgui
 import moderngl
@@ -31,6 +30,9 @@ class CubeSimple(CameraFBT):
     def show_debug_info(self):
         super().show_debug_info()
 
+    def operation_panel(self):
+        super().operation_panel()
+
 
 class CubeSimpleInstanced(CameraFBT):
     def __init__(self, name, width, height, channel=4, camera_type='orbit'):
@@ -46,6 +48,9 @@ class CubeSimpleInstanced(CameraFBT):
 
     def show_debug_info(self):
         super().show_debug_info()
+
+    def operation_panel(self):
+        super().operation_panel()
 
 
 def depth_texture_to_image_rgba(depth_texture):
@@ -63,8 +68,6 @@ class SceneInfoRenderer(CameraFBT):
     def __init__(self, name, width, height, channel=4, camera_type='orbit'):
         super().__init__(name, width, height, channel, camera_type)
         self.geometry_collection = geometry_collection.PointCloudCollection('point_cloud_collection', self.camera)
-        from gui.modules.graphic_module import SimpleTexture
-        self.depth_simple_texture = SimpleTexture(width, height, channel)
 
     def set_points_arr(self, pos_arr, color_arr):
         self.geometry_collection.set_points_cloud(pos_arr, color_arr)
@@ -75,13 +78,17 @@ class SceneInfoRenderer(CameraFBT):
         self.fbo.use()
         self.fbo.clear()
         self.geometry_collection.render()
-        self.depth_simple_texture.bilt_data(depth_texture_to_image_rgba(self.fbo.depth_attachment))
-        g.mSharedTexture = self.depth_simple_texture
 
     def show_debug_info(self):
         super().show_debug_info()
         c.bold_text(f'[{self.__class__.__name__}]')
         self.geometry_collection.show_debug_info()
+
+    def operation_panel(self):
+        super().operation_panel()
+        c.bold_text(f'[{self.__class__.__name__}]')
+        imgui.text('nothing to show for scene manager renderer')
+        self.geometry_collection.operation_panel()
 
 
 class GaussianRenderer(CameraFBT):
@@ -125,8 +132,9 @@ class GaussianRenderer(CameraFBT):
 
         self.blenderFBT = GaussianBlenderFBT('fs_FBT', width, height, 4)  # 混合渲染结果的画布
 
+        self.empty_img = np.zeros((self.height, self.width, self.channel), dtype=np.uint8)
         # settings
-        self.debug_render_gaussian = False
+        self.debug_render_gaussian = True
         self.debug_show_gaussian_pt_cloud = False  # 打开时预览Gaussian point cloud的color attachment
         self.debug_render_time_gap = 0.05  # default 20fps
         self._last_render_time = 0.0
@@ -139,6 +147,7 @@ class GaussianRenderer(CameraFBT):
         self.gaussian_color_attachment = g.mWindowEvent.ctx.texture((width, height), 4)
         self.blenderFBT.update_size(width, height)
         self.gaussianFBT.update_size(width, height)
+        self.empty_img = np.zeros((self.height, self.width, self.channel), dtype=np.uint8)
 
     def render_gaussian(self):
         # render gaussian to self.gaussian_color_attachment
@@ -147,7 +156,9 @@ class GaussianRenderer(CameraFBT):
             return
         # only render when time > time gap
         with self.torch.no_grad():
-            image_rgb_arr: np.ndarray = self.gaussian_collection.render()
+            image_rgb_arr: np.ndarray = self.gaussian_collection.render_gaussian()
+        if image_rgb_arr is None:
+            image_rgb_arr = self.empty_img
         self.gaussian_color_attachment.write(image_rgb_arr.tobytes())
         self._last_render_time = curr_time
 
@@ -192,15 +203,25 @@ class GaussianRenderer(CameraFBT):
     def texture_id(self):
         return self.texture.glo
 
-    def show_debug_info(self):
-        super().show_debug_info()
+    def operation_panel(self):
+        # ====================super========================
+        super().operation_panel()
+        # ===============Gaussian Renderer=================
         c.bold_text(f'[{self.__class__.__name__}]')
         _, self.debug_render_gaussian = imgui.checkbox('render gaussian', self.debug_render_gaussian)
-        imgui.same_line()
         _, self.debug_show_gaussian_pt_cloud = imgui.checkbox('show gaussian pt cloud',
                                                               self.debug_show_gaussian_pt_cloud)
-        imgui.same_line()
         imgui.set_next_item_width(g.GLOBAL_SCALE * 200)
         _, self.debug_render_time_gap = imgui.slider_float('render time gap', self.debug_render_time_gap, 0.0, 1.0)
-        self.gaussian_collection.show_debug_info()
+        # ===============collection=================
+        self.geometry_collection.operation_panel()
+        self.gaussian_collection.operation_panel()
 
+    def show_debug_info(self):
+        # ====================super========================
+        super().show_debug_info()
+        # ===============Gaussian Renderer=================
+        c.bold_text(f'[{self.__class__.__name__}]')
+        # ===============collection=================
+        self.geometry_collection.show_debug_info()
+        self.gaussian_collection.show_debug_info()

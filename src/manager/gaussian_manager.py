@@ -323,6 +323,11 @@ class GaussianManager:
         self._clear_grad(self.gaussians._rotation, mask)
         self._clear_grad(self.gaussians._opacity, mask)
 
+    def move(self, offset):
+        offset = torch.tensor(offset).cuda()
+        with torch.no_grad():
+            self.gaussians._xyz = self.gaussians._xyz + offset
+
     @staticmethod
     def rgb2feature_dc(data):
         return (data - 0.5) / 0.28209479177387814
@@ -339,4 +344,3 @@ class GaussianManager:
     def alpha2feature_opacity(a):
         assert a != 0 and a != 1, "a cannot be zero or one"
         return torch.log(a / (1 - a))
-

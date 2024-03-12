@@ -109,6 +109,12 @@ class ViewerContent(BaseContent):
             cls.mRenderer.show_debug_info()
 
     @classmethod
+    def operation_panel(cls):
+        if cls.mRenderer is None:
+            return
+        cls.mRenderer.operation_panel()
+
+    @classmethod
     def show_help_info(cls):
         org_cursor_pos = imgui.get_cursor_pos()
 

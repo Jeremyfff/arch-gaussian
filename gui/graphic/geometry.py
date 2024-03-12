@@ -191,6 +191,10 @@ class GaussianPointCloud(BaseGeometry):
         self.gaussian_point_cloud: Optional[PointCloud] = None
         self.gaussian_size_threshold = 0.001
 
+        self._imgui_move_vec = (0, 0, 0)
+        self._imgui_editing_name = False
+        self._imgui_name_variable = self.name
+
     def set_gaussian_manager(self, gaussian_manager):
         self.gm = gaussian_manager
 
@@ -220,10 +224,43 @@ class GaussianPointCloud(BaseGeometry):
         c.bold_text(f'[{self.__class__.__name__}(class)]')
 
     @abstractmethod
-    def operation_panel(self):
-        if imgui.button('update gaussian points'):
+    def operation_panel(self) -> tuple:
+        """return changed, delete_self"""
+        delete_self = False  # to tell the parent collection to delete self
+        changed = False
+        imgui.push_id(self.name)
+        if self._imgui_editing_name:
+            imgui.push_id(f'{self.name}_name_input')
+            _, self._imgui_name_variable = imgui.input_text('', self._imgui_name_variable)
+            imgui.pop_id()
+            imgui.same_line()
+            if imgui.button('confirm'):
+                self.name = self._imgui_name_variable
+                self._imgui_editing_name = False
+            imgui.same_line()
+            if imgui.button('cancel'):
+                self._imgui_editing_name = False
+        else:
+            c.bold_text(self.name)
+            if imgui.is_mouse_double_clicked(0) and imgui.is_item_hovered():
+                self._imgui_editing_name = True
+            c.easy_tooltip(f'Double click to rename')
+        if imgui.button('Update Gaussian Points'):
             self.update_gaussian_points()
+            changed |= True
+        c.easy_tooltip('Manually update gaussian points base on GaussianManager.gaussians')
         _, self.gaussian_size_threshold = imgui.slider_float('size_threshold', self.gaussian_size_threshold, 0.0, 0.1)
+        _, self._imgui_move_vec = imgui.input_float3('offset', *self._imgui_move_vec)
+        imgui.same_line()
+        if imgui.button('move'):
+            self.gm.move(self._imgui_move_vec)
+            self.update_gaussian_points()
+            changed |= True
+        if c.icon_text_button('delete-bin-fill', 'delete'):
+            delete_self = True
+            changed |= True
+        imgui.pop_id()
+        return changed, delete_self
 
     def render(self, camera: Camera):
         self.gaussian_point_cloud.render(camera)

@@ -209,3 +209,5 @@ class EventModule(BaseModule):
     def on_camera_manager_changed(cls, camera_manager):
         for func in cls._camera_manager_change_callbacks:
             func(camera_manager)
+
+    _operation_panel_show_callbacks = set()

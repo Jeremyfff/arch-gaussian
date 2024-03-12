@@ -86,6 +86,10 @@ class FrameBufferTexture:
         imgui.same_line()
         imgui.text(f'width: {self.width} height: {self.height} channel: {self.channel}')
 
+    @abstractmethod
+    def operation_panel(self):
+        pass
+
 
 class CameraFBT(FrameBufferTexture):
     """自由摄像机 模板"""
@@ -128,6 +132,10 @@ class CameraFBT(FrameBufferTexture):
         c.bold_text('[CameraFrameBuffer]')
         self.camera_behaviour.show_debug_info()
 
+    @abstractmethod
+    def operation_panel(self):
+        super().operation_panel()
+
 
 class GaussianBlenderFBT(FrameBufferTexture):
     def __init__(self, name, width, height, channel=4):
@@ -153,3 +161,6 @@ class GaussianBlenderFBT(FrameBufferTexture):
 
     def show_debug_info(self):
         super().show_debug_info()
+
+    def operation_panel(self):
+        super().operation_panel()
