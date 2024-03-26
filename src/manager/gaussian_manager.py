@@ -8,7 +8,6 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from gaussian_renderer import render
 from scene import GaussianModel
 from utils.arg_utils import parse_args
 from utils.image_utils import get_pil_image
@@ -28,15 +27,17 @@ def create_gaussian_from_scene_info(sh_degree, scene_info):
 
 
 class GaussianManager:
-    def __init__(self, args, scene_info):
+    def __init__(self, args, scene_info, custom_ply_path=None):
         self.args = args
         lp, op, pp = parse_args(args)
         dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from = lp.extract(
             args), op.extract(args), pp.extract(
             args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from
         self.pipe = pipe
-
-        if args.loaded_iter:
+        if custom_ply_path is not None:
+            # 如果有custom ply path， 则使用自定义的路径创建gaussian
+            self.gaussians = create_gaussian_from_ply(args.sh_degree, custom_ply_path)
+        elif args.loaded_iter:
             print("[Gaussian Manager] Creating gaussians from ply")
             self.gaussians = create_gaussian_from_ply(args.sh_degree, os.path.join(args.model_path, "point_cloud",
                                                                                    "iteration_" + str(args.loaded_iter),
@@ -48,6 +49,12 @@ class GaussianManager:
         self.bg = torch.tensor([0, 0, 0], dtype=torch.float32, device="cuda")
         self.bg_backup = None
         self.gaussians_backup = None
+
+        try:
+            from gaussian_renderer import render
+            self.render_module = render
+        except Exception as e:
+            self.render_module = None
 
     @contextmanager
     def virtual(self):
@@ -75,14 +82,26 @@ class GaussianManager:
         self.gaussians_backup = self.gaussians
         self.bg_backup = self.bg
 
-    def render(self, camera, convert_to_pil=False):
+    def render(self, camera, convert_to_pil=False, convert_to_rgba_arr=False, convert_to_rgb_arr=False):
+        if self.render_module is None:
+            return np.zeros((camera.image_height, camera.image_width, 4), dtype=np.uint8)
         with torch.no_grad():
-            render_pkg = render(camera, self.gaussians, self.pipe, self.bg)
+            render_pkg = self.render_module(camera, self.gaussians, self.pipe, self.bg)
             image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg[
                 "viewspace_points"], \
                 render_pkg["visibility_filter"], render_pkg["radii"]
             if convert_to_pil:
                 image = get_pil_image(image)
+            elif convert_to_rgba_arr:
+                image_rgb = image.clamp(0.0, 1.0).cpu().numpy().transpose((1, 2, 0))
+                alpha_channel = np.ones((image_rgb.shape[0], image_rgb.shape[1], 1))
+                image_rgba = np.concatenate((image_rgb, alpha_channel), axis=2)
+                image_rgba = (image_rgba * 255).astype(np.uint8)
+                image = image_rgba
+            elif convert_to_rgb_arr:
+                image_rgb = image.clamp(0.0, 1.0).cpu().numpy().transpose((1, 2, 0))
+                image_rgb = (image_rgb * 255).astype(np.uint8)
+                image = image_rgb
         return image
 
     def visualize_in_o3d(self):
@@ -303,6 +322,11 @@ class GaussianManager:
         self._clear_grad(self.gaussians._scaling, mask)
         self._clear_grad(self.gaussians._rotation, mask)
         self._clear_grad(self.gaussians._opacity, mask)
+
+    def move(self, offset):
+        offset = torch.tensor(offset).cuda()
+        with torch.no_grad():
+            self.gaussians._xyz = self.gaussians._xyz + offset
 
     @staticmethod
     def rgb2feature_dc(data):

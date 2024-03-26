@@ -1,19 +1,17 @@
-
-
 import logging
-import imgui
-import gui.global_var as g
 
+import imgui
+
+import gui.global_var as g
+from gui.contents import BlankContent
+from gui.contents import Edit3DGSContent
+from gui.contents import GUI_CONTENT_TYPES
+from gui.contents import NodeEditorContent
 from gui.contents import PrepareContent
 from gui.contents import Train3DGSContent
-from gui.contents import Edit3DGSContent
-from gui.contents import ViewerContent
-from gui.contents import NodeEditorContent
-from gui.contents import BlankContent
 from gui.contents import VerticalResizeHandleContent
-from gui.contents import GUI_CONTENT_TYPES
-
-from gui.modules import EventModule, LayoutModule
+from gui.contents import ViewerContent
+from gui.modules import EventModule, LayoutModule, ShadowModule
 from gui.windows.base_window import BaseWindow
 
 
@@ -53,7 +51,8 @@ class MainWindow(BaseWindow):
     @classmethod
     def w_show(cls):
         super().w_show()
-        cls.show_pages(cls.display_contents[cls.curr_nav_idx])
+        with LayoutModule.LayoutWindow(cls.LAYOUT_NAME, 'main window'):
+            cls.show_pages(cls.display_contents[cls.curr_nav_idx])
 
     @classmethod
     def show_pages(cls, page_contents: tuple[GUI_CONTENT_TYPES]):
@@ -69,28 +68,31 @@ class MainWindow(BaseWindow):
 
     @classmethod
     def show_one_page(cls, content: GUI_CONTENT_TYPES):
-        with LayoutModule.LayoutWindow(cls.LAYOUT_NAME):
+        with LayoutModule.LayoutChild(cls.LAYOUT_NAME):
             content.c_show()
 
     @classmethod
     def show_multiple_pages(cls, *page_contents):
         if len(page_contents) == 2:
             # 没有resize handle
-            with LayoutModule.LayoutWindow('level3_left'):
+            with LayoutModule.LayoutChild('level3_left'):
                 page_contents[0].c_show()
-            with LayoutModule.LayoutWindow('level3_right'):
+
+            with LayoutModule.LayoutChild('level3_right'):
                 page_contents[1].c_show()
+
         elif len(page_contents) == 3:
             # 中间为resize handle
 
             imgui.push_style_var(imgui.STYLE_WINDOW_MIN_SIZE, (1, 1))
             imgui.push_style_var(imgui.STYLE_WINDOW_BORDERSIZE, 0)
-            with LayoutModule.LayoutWindow('level3_middle'):
+            with LayoutModule.LayoutChild('level3_middle'):
                 page_contents[1].c_show()
             imgui.pop_style_var(2)
-            with LayoutModule.LayoutWindow('level3_left'):
+            with LayoutModule.LayoutChild('level3_left', border=True):
                 page_contents[0].c_show()
-            with LayoutModule.LayoutWindow('level3_right'):
+
+            with LayoutModule.LayoutChild('level3_right'):
                 page_contents[2].c_show()
 
     @classmethod

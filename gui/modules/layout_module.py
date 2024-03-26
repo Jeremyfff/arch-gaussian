@@ -3,6 +3,7 @@ from typing import Optional
 
 import imgui
 
+from gui import components as c
 from gui import global_var as g
 from gui.modules.base_module import BaseModule
 
@@ -118,8 +119,12 @@ class LayoutModule(BaseModule):
     vertical_resizable_layout: Optional[LayoutElement] = None  # 竖向的可以调整大小的layout element
     horizontal_resizable_layout: Optional[LayoutElement] = None  # 横向的可以调整大小的layout element
 
+    shadow_module = None
+
     @classmethod
     def m_init(cls):
+        from gui.modules import ShadowModule
+        cls.shadow_module = ShadowModule
         style = g.mImguiStyle
         cls.layout.root_layout.set_layout_direction(LayoutDirection.Vertical)
         cls.layout.root_layout.add_child('level1_top', LayoutMode.fixed,
@@ -150,19 +155,38 @@ class LayoutModule(BaseModule):
 
     class LayoutWindow:
         default_flags = imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_BRING_TO_FRONT_ON_FOCUS
+        default_flags |= imgui.WINDOW_NO_SCROLLBAR | imgui.WINDOW_NO_SCROLL_WITH_MOUSE
 
         def __init__(self, layout_name, window_name=None, closable=False, flags=None):
             self.layout_name = layout_name
             self.window_name = layout_name if window_name is None else window_name
             self.window_closable = closable
-            self.window_flags = LayoutModule.LayoutWindow.default_flags if window_name is None else flags
+            self.window_flags = LayoutModule.LayoutWindow.default_flags if flags is None else flags
 
         def __enter__(self):
-
             imgui.set_next_window_position(*LayoutModule.layout.get_pos(self.layout_name))
             imgui.set_next_window_size(*LayoutModule.layout.get_size(self.layout_name))
             imgui.begin(self.window_name, self.window_closable, self.window_flags)
             return self
 
         def __exit__(self, exc_type, exc_value, traceback):
+            LayoutModule.shadow_module.draw_shadows()
             imgui.end()
+
+    class LayoutChild:
+        def __init__(self, layout_name, window_name=None, border=False):
+            self.layout_name = layout_name
+            self.window_name = layout_name if window_name is None else window_name
+            self.border = border
+
+        def __enter__(self):
+            window_pos = imgui.get_window_position()
+            pos = LayoutModule.layout.get_pos(self.layout_name)
+            size = LayoutModule.layout.get_size(self.layout_name)
+            imgui.set_cursor_pos((- window_pos[0] + pos[0],
+                                  - window_pos[1] + pos[1]))
+            c.begin_child(self.window_name, *size, border=self.border)
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            imgui.end_child()

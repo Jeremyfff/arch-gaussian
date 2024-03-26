@@ -1,6 +1,8 @@
-from gui.contents.base_content import BaseContent
 import imgui
+
 from gui import components as c
+from gui.contents.base_content import BaseContent
+
 
 class MainMenuContent(BaseContent):
     @classmethod
@@ -15,8 +17,8 @@ class MainMenuContent(BaseContent):
     def c_show(cls):
         super().c_show()
         if imgui.begin_menu('File').opened:
-            c.quick_menu_item('Open File', lambda : print(f'open file'))
-            c.quick_menu_item('New File', lambda :print('new file'))
+            c.quick_menu_item('Open File', lambda: print(f'open file'))
+            c.quick_menu_item('New File', lambda: print('new file'))
             c.quick_menu_item('Exit')
             imgui.end_menu()
         if imgui.begin_menu('Process').opened:
@@ -28,9 +30,6 @@ class MainMenuContent(BaseContent):
             c.quick_menu_item('train guide')
             imgui.end_menu()
 
-
-
-
     @classmethod
     def c_on_show(cls):
         super().c_on_show()
@@ -38,3 +37,4 @@ class MainMenuContent(BaseContent):
     @classmethod
     def c_on_hide(cls):
         super().c_on_hide()
+

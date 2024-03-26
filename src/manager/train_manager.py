@@ -6,18 +6,18 @@ import random
 import uuid
 from argparse import Namespace
 from enum import Enum
-from scripts import config
-from gaussian_renderer import render
 
-from scene import GaussianModel
-from utils.arg_utils import parse_args
-from utils.camera_utils import camera_to_JSON, cameraList_from_camInfos
-from utils.image_utils import get_pil_image, save_pil_image
 import torch
 from tqdm.auto import tqdm
-from utils.loss_utils import l1_loss, ssim
+
+from gaussian_renderer import render
 from manager.camera_manager import CameraManager
 from manager.gaussian_manager import GaussianManager
+from scripts import config
+from utils.arg_utils import parse_args
+from utils.camera_utils import camera_to_JSON
+from utils.image_utils import get_pil_image, save_pil_image
+from utils.loss_utils import l1_loss, ssim
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -61,7 +61,8 @@ def take_snapshot(_cm: CameraManager, _gm: GaussianManager, _camera_mode=Snapsho
     _image = kwargs['image']
 
     global snap_count
-    if (_iteration < _first_period_end and _iteration % _first_period_iteration_gap == 0) or (_iteration % _iteration_gap == 0):
+    if (_iteration < _first_period_end and _iteration % _first_period_iteration_gap == 0) or (
+            _iteration % _iteration_gap == 0):
         if _camera_mode == SnapshotCameraMode.RAW:
             _camera = None
         elif _camera_mode == SnapshotCameraMode.STILL:
@@ -160,6 +161,7 @@ def init_output_folder(args, scene_info):
 
 
 def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socket=None, post_socket=None):
+    from src.utils import progress_utils as pu
     print("🚀Optimizing " + config.scene_name)
     lp, op, pp = parse_args(args)
     dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from = lp.extract(
@@ -194,6 +196,7 @@ def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socke
     viewpoint_stack = None
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
+    pu.new_progress(opt.iterations - first_iter)
     first_iter += 1
     for iteration in range(first_iter, opt.iterations + 1):
 
@@ -269,12 +272,14 @@ def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socke
             if iteration % 10 == 0:
                 progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
                 progress_bar.update(10)
+                pu.update(10)
             if iteration == opt.iterations:
                 progress_bar.close()
-
+                pu._curr = pu.get_total()
             # Log and save
-            # training_report(tb_writer, iteration, Ll1, loss, l1_loss, iter_start.elapsed_time(iter_end),testing_iterations, scene, render, (pipe, background))
-            if (iteration in saving_iterations):
+            # training_report(tb_writer, iteration, Ll1, loss, l1_loss,
+            # iter_start.elapsed_time(iter_end),testing_iterations, scene, render, (pipe, background))
+            if iteration in saving_iterations:
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 # scene.save(iteration)
                 point_cloud_path = os.path.join(args.model_path, "point_cloud/iteration_{}".format(iteration))

@@ -1,3 +1,4 @@
+import os
 import sys
 from io import StringIO
 
@@ -10,7 +11,7 @@ from ctypes.wintypes import SIZE, UINT, HANDLE, HBITMAP
 from comtypes import GUID, IUnknown, COMMETHOD, HRESULT
 import win32ui
 from PIL import Image
-
+from gui import global_var as g
 
 class OutputCapture:
     def __init__(self, target_list):
@@ -38,11 +39,15 @@ class OutputCapture:
         sys.stdout = self.old_stdout
 
 
-def open_file_dialog():
+def open_file_dialog(initial_dir = None):
+    if initial_dir is None:
+        initial_dir = g.mLastFileDir
     dlg = win32ui.CreateFileDialog(1)  # 参数 1 表示打开文件对话框
-    dlg.SetOFNInitialDir('C://')  # 设置打开文件对话框中的初始显示目录
+    dlg.SetOFNInitialDir(initial_dir)  # 设置打开文件对话框中的初始显示目录
     dlg.DoModal()
     filename = dlg.GetPathName()
+    if filename != '':
+        g.mLastFileDir = os.path.dirname(filename)
     return filename
 
 

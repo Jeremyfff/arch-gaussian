@@ -1,8 +1,8 @@
 import imgui
 from ImNodeEditor import NE
-from gui.modules import LayoutModule, EventModule, ALL_MODULES
-from gui.windows import ALL_WINDOWS
-from scripts import project_manager as pm
+from gui.modules import LayoutModule, EventModule, ShadowModule, ALL_MODULES
+from gui.windows import ALL_WINDOWS, POPUP_WINDOWS
+from scripts.project_manager import ProjectManager
 
 
 class UIManager:
@@ -17,8 +17,8 @@ class UIManager:
     @classmethod
     def u_update(cls):
         """logical update"""
-        if pm.curr_project is not None:
-            pm.curr_project.update()
+        if ProjectManager.curr_project is not None:
+            ProjectManager.curr_project.p_update()
 
         for window in ALL_WINDOWS:
             window.w_update()
@@ -28,6 +28,7 @@ class UIManager:
         """ui update"""
         for window in ALL_WINDOWS:
             window.w_show()
+        ShadowModule.update_window_rects(POPUP_WINDOWS)
         imgui.show_demo_window()
 
     @classmethod

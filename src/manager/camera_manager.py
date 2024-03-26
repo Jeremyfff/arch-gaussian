@@ -17,6 +17,7 @@ class CameraManager:
         @Jeremy
         create cameras from scene info
         """
+
         print("Creating Cameras")
         self.train_cameras = {}
         self.test_cameras = {}

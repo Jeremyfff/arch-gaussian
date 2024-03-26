@@ -4,7 +4,7 @@ from gui import global_var as g
 from gui.contents import pages
 from gui.contents.base_content import BaseContent
 from gui.modules.animation_module import AnimatedPageGroup
-from scripts import project_manager as pm
+from scripts.project_manager import ProjectManager
 
 
 class PrepareContent(BaseContent):
@@ -27,7 +27,7 @@ class PrepareContent(BaseContent):
     @classmethod
     def c_show(cls):
         super().c_show()
-        if pm.curr_project is None:
+        if ProjectManager.curr_project is None:
             imgui.text('Please Open A Project First')
             return
         imgui.push_style_var(imgui.STYLE_FRAME_PADDING,

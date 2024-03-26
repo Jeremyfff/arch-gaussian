@@ -1,17 +1,19 @@
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 import imgui
 
 from gui import components as c
 from gui import global_var as g
 from gui.contents.base_content import BaseContent
-from gui.graphic.renderers import SceneInfoRenderer
+from gui.graphic.renderers import SceneInfoRenderer, GaussianRenderer
 from gui.modules import EventModule
 
 
 class ViewerContent(BaseContent):
-    mRenderer: Optional[SceneInfoRenderer] = None  # main graphic renderer
+    mRenderer: Optional[Union[SceneInfoRenderer, GaussianRenderer]] = None  # main graphic renderer
+    mCameraManager = None
+
     # debug
     _can_show_debug_tools = True
     _can_show_debug_info = True
@@ -28,7 +30,7 @@ class ViewerContent(BaseContent):
         super().c_init()
         # initialize
 
-        cls._initialize_renderer()
+        cls._initialize_scene_info_renderer()
 
         cls._update_graphic_size = True  # update graphic size when shown
 
@@ -39,13 +41,17 @@ class ViewerContent(BaseContent):
             cls.mRenderer.render()
 
     @classmethod
+    def get_content_size(cls):
+        return int(imgui.get_window_width() - 2 * g.mImguiStyle.window_padding[0]), \
+            int(imgui.get_window_height() - 2 * g.mImguiStyle.window_padding[1])
+
+    @classmethod
     def c_show(cls):
         super().c_show()
         # handle imgui related values
         cls._is_content_hovered = imgui.is_window_hovered() and not imgui.is_any_item_hovered()
         if cls._update_graphic_size and cls.mRenderer is not None:
-            cls.mRenderer.update_size(int(imgui.get_window_width() - 2 * g.mImguiStyle.window_padding[0]),
-                                      int(imgui.get_window_height() - 2 * g.mImguiStyle.window_padding[1]))
+            cls.mRenderer.update_size(*cls.get_content_size())
             cls._update_graphic_size = False
         org_cursor_pos = imgui.get_cursor_pos()
         # display image
@@ -103,6 +109,12 @@ class ViewerContent(BaseContent):
             cls.mRenderer.show_debug_info()
 
     @classmethod
+    def operation_panel(cls):
+        if cls.mRenderer is None:
+            return
+        cls.mRenderer.operation_panel()
+
+    @classmethod
     def show_help_info(cls):
         org_cursor_pos = imgui.get_cursor_pos()
 
@@ -125,10 +137,15 @@ class ViewerContent(BaseContent):
         imgui.set_cursor_pos(org_cursor_pos)
 
     @classmethod
-    def _initialize_renderer(cls):
-        """initialize renderer"""
-        logging.info(f'[{__name__}] initialize frame buffer')
-        cls.mRenderer = SceneInfoRenderer('test', 100, 100, camera_type='orbit')
+    def _initialize_scene_info_renderer(cls):
+        """initialize scene info renderer"""
+        cls.mRenderer = SceneInfoRenderer('scene info renderer', 100, 100, camera_type='orbit')
+        cls._update_graphic_size = True
+
+    @classmethod
+    def _initialize_gaussian_renderer(cls):
+        cls.mRenderer = GaussianRenderer('gaussian renderer', 100, 100)
+        cls._update_graphic_size = True
 
     @classmethod
     def _get_content_size(cls):
@@ -141,17 +158,20 @@ class ViewerContent(BaseContent):
         _ = x, y
         if not cls._is_content_hovered:
             return
-        if button == 2 or button == 3:
+        if button == 2:
+            # right mouse button
             cls._enter_view_op_mode(x, y, button)  # enter view op mode when mouse right pressed and hovering window
 
     @classmethod
     def _on_mouse_release(cls, x, y, button):
         _ = x, y
-        if button == 2 or button == 3:
+        if button == 2:
+            # right mouse button
             cls._exit_view_op_mode(x, y, button)
 
     @classmethod
     def _on_mouse_move(cls, x, y, dx, dy):
+        _ = x, y, dx, dy
         if cls._is_content_hovered and not cls._is_graphic_renderer_in_hovering_mode:
             cls._enter_view_hovering_mode()
         elif (not cls._is_content_hovered) and cls._is_graphic_renderer_in_hovering_mode and \
@@ -175,11 +195,34 @@ class ViewerContent(BaseContent):
         scene_manager: SceneManager = scene_manager
         logging.info('on scene info changed')
         if cls.mRenderer is None:
-            logging.info(f'renderer is None. cannot display scene info')
+            logging.info(f'renderer is None. Cannot display scene info')
             return
+        if type(cls.mRenderer) != SceneInfoRenderer:
+            logging.info('renderer is not scene info renderer, switch to scene info renderer')
+            cls._initialize_scene_info_renderer()
         if type(cls.mRenderer) == SceneInfoRenderer:
             cls.mRenderer.set_points_arr(scene_manager.scene_info.point_cloud.points,
                                          scene_manager.scene_info.point_cloud.colors)
+
+    @classmethod
+    def _on_gaussian_manager_changed(cls, gaussian_manager):
+        from src.manager.gaussian_manager import GaussianManager
+        gm: GaussianManager = gaussian_manager
+        logging.info('on gaussian manager changed')
+        if cls.mRenderer is None:
+            logging.info('renderer is None. Cannot display gaussians')
+            return
+        if type(cls.mRenderer) != GaussianRenderer:
+            cls._initialize_gaussian_renderer()
+        if type(cls.mRenderer) == GaussianRenderer:
+            cls.mRenderer.set_gaussian_manager(gm)
+
+    @classmethod
+    def _on_camera_manager_changed(cls, camera_manager):
+        from src.manager.camera_manager import CameraManager
+        cm: CameraManager = camera_manager
+        logging.info('on camera manager changed')
+        cls.mCameraManager = cm
 
     @classmethod
     def _register_events(cls):
@@ -191,6 +234,8 @@ class ViewerContent(BaseContent):
         EventModule.register_mouse_position_callback(cls._on_mouse_move)
         EventModule.register_key_event_callback(cls._on_key_event)
         EventModule.register_scene_manager_change_callback(cls._on_scene_manager_changed)
+        EventModule.register_gaussian_manager_change_callback(cls._on_gaussian_manager_changed)
+        EventModule.register_camera_manager_change_callback(cls._on_camera_manager_changed)
 
     @classmethod
     def _unregister_events(cls):
@@ -202,6 +247,8 @@ class ViewerContent(BaseContent):
         EventModule.unregister_mouse_position_callback(cls._on_mouse_move)
         EventModule.unregister_key_event_callback(cls._on_key_event)
         EventModule.unregister_scene_manager_change_callback(cls._on_scene_manager_changed)
+        EventModule.unregister_gaussian_manager_change_callback(cls._on_gaussian_manager_changed)
+        EventModule.unregister_camera_manager_change_callback(cls._on_camera_manager_changed)
 
     @classmethod
     def _enter_view_op_mode(cls, x, y, button):

@@ -10,7 +10,7 @@ from gui import global_var as g
 from gui.contents.pages.base_page import BasePage
 from gui.modules import StyleModule
 from scripts import config
-from scripts import project_manager as pm
+from scripts.project_manager import ProjectManager
 from src.utils import progress_utils as pu
 
 
@@ -19,11 +19,11 @@ class PrepareSharedComponents:
 
     @classmethod
     def show_input_image_gallery(cls, processing_flag):
-        if not pm.curr_project.get_info('has_input_image_folder'):
+        if not ProjectManager.curr_project.get_info('has_input_image_folder'):
             return
         c.image_gallery_with_title(
             title='Input Image Gallery',
-            folder_path=pm.curr_project.get_info('input_image_folder'),
+            folder_path=ProjectManager.curr_project.get_info('input_image_folder'),
             processing_flag=processing_flag,
             last_add_time=cls.mLastAddTime,
             last_add_time_callback=cls._last_add_time_callback
@@ -71,20 +71,20 @@ class PrepareExtractVideoPage(BasePage):
     @classmethod
     def p_call(cls):
         if imgui.button('refresh info'):
-            pm.curr_project.scan_video()
-            pm.curr_project.scan_input_images()
+            ProjectManager.curr_project.scan_video()
+            ProjectManager.curr_project.scan_input_images()
         c.icon_image('video-line', padding=True)
         imgui.same_line()
         imgui.text('from video')
-        mp4_file_names = pm.curr_project.get_info('mp4_file_names')
-        mp4_file_paths = pm.curr_project.get_info('mp4_file_paths')
+        mp4_file_names = ProjectManager.curr_project.get_info('mp4_file_names')
+        mp4_file_paths = ProjectManager.curr_project.get_info('mp4_file_paths')
         if not mp4_file_names:
-            imgui.text_wrapped(f'no video detected in {pm.curr_project.get_info("data_root")}')
+            imgui.text_wrapped(f'no video detected in {ProjectManager.curr_project.get_info("data_root")}')
             return
         _, cls.mCurrSelectedMp4Idx = imgui.listbox('mp4 files', cls.mCurrSelectedMp4Idx, mp4_file_names)
         imgui.separator()
         c.bold_text('BASIC INFORMATION:')
-        imgui.text(f'exist input images = {len(pm.curr_project.get_info("input_image_names"))}')
+        imgui.text(f'exist input images = {len(ProjectManager.curr_project.get_info("input_image_names"))}')
         c.bold_text('Target Video File:')
         imgui.text(f'file name: {mp4_file_names[cls.mCurrSelectedMp4Idx]}')
         c.gray_text(f'file path: {mp4_file_paths[cls.mCurrSelectedMp4Idx]}')
@@ -93,7 +93,7 @@ class PrepareExtractVideoPage(BasePage):
         _, cls.mExtractTargetFrames = imgui.input_int('target frames', cls.mExtractTargetFrames)
         _, cls.mExtractIndentFrames = imgui.input_int('indent frames', cls.mExtractIndentFrames)
         c.bold_text('Output Folder:')
-        imgui.text(pm.curr_project.get_info('input_image_folder'))
+        imgui.text(ProjectManager.curr_project.get_info('input_image_folder'))
         if cls.mExtractingVideo:
             StyleModule.push_disabled_button_color()
             imgui.button('EXTRACT FRAMES (RUNNING...)', width=imgui.get_content_region_available_width())
@@ -111,14 +111,14 @@ class PrepareExtractVideoPage(BasePage):
     def _extract_video(cls):
         from src.utils.video_utils import extract_frames
         cls.mExtractingVideo = True
-        os.makedirs(pm.curr_project.get_info('input_image_folder'), exist_ok=True)
-        pm.curr_project.scan_input_images()
+        os.makedirs(ProjectManager.curr_project.get_info('input_image_folder'), exist_ok=True)
+        ProjectManager.curr_project.scan_input_images()
         pu.create_contex('extract_frames', cls._update_extract_progress)
         extract_frames(
-            video_path=pm.curr_project.get_info('mp4_file_paths')[cls.mCurrSelectedMp4Idx],
+            video_path=ProjectManager.curr_project.get_info('mp4_file_paths')[cls.mCurrSelectedMp4Idx],
             target_frames=cls.mExtractTargetFrames,
             indent_frames=cls.mExtractIndentFrames)
-        pm.curr_project.scan_input_images()
+        ProjectManager.curr_project.scan_input_images()
         time.sleep(1.1)
         cls.mExtractingVideo = False
 
@@ -143,16 +143,16 @@ class PrepareGoogleEarthPage(BasePage):
     @classmethod
     def p_call(cls):
         if imgui.button('refresh info'):
-            pm.curr_project.scan_google_earth_footage()
-            pm.curr_project.scan_input_images()
-        if not pm.curr_project.get_info('has_footage_image_folder'):
+            ProjectManager.curr_project.scan_google_earth_footage()
+            ProjectManager.curr_project.scan_input_images()
+        if not ProjectManager.curr_project.get_info('has_footage_image_folder'):
             imgui.text('NO GOOGLE EARTH FOOTAGE HERE')
-            imgui.text_wrapped(f'add image to {pm.curr_project.get_info("footage_image_folder")}')
+            imgui.text_wrapped(f'add image to {ProjectManager.curr_project.get_info("footage_image_folder")}')
             return
         cls._show_footage_image_gallery()
-        input_folder_path = pm.curr_project.get_info('footage_image_folder')
-        output_folder_path = pm.curr_project.get_info('input_image_folder')
-        num_footage = len(pm.curr_project.get_info('footage_image_names'))
+        input_folder_path = ProjectManager.curr_project.get_info('footage_image_folder')
+        output_folder_path = ProjectManager.curr_project.get_info('input_image_folder')
+        num_footage = len(ProjectManager.curr_project.get_info('footage_image_names'))
         c.bold_text('INFORMATION')
         imgui.text(f'num footage: {num_footage}')
         imgui.text(f'footage folder: {input_folder_path}')
@@ -174,27 +174,27 @@ class PrepareGoogleEarthPage(BasePage):
 
     @classmethod
     def _show_footage_image_gallery(cls):
-        if not pm.curr_project.get_info('has_footage_image_folder'):
+        if not ProjectManager.curr_project.get_info('has_footage_image_folder'):
             return
         c.image_gallery_with_title(
             'Footage Image Gallery',
-            folder_path=pm.curr_project.get_info('footage_image_folder'),
+            folder_path=ProjectManager.curr_project.get_info('footage_image_folder'),
         )
 
     @classmethod
     def _process_footage_frames(cls):
         from src.utils.video_utils import process_google_earth_frames
         cls.mProcessingFootage = True
-        os.makedirs(pm.curr_project.get_info('input_image_folder'), exist_ok=True)
-        pm.curr_project.scan_input_images()
+        os.makedirs(ProjectManager.curr_project.get_info('input_image_folder'), exist_ok=True)
+        ProjectManager.curr_project.scan_input_images()
         pu.create_contex('process_google_earth_frames', cls._update_footage_progress)
         process_google_earth_frames(
-            input_folder_path=pm.curr_project.get_info('footage_image_folder'),
-            output_folder_path=pm.curr_project.get_info('input_image_folder'),
+            input_folder_path=ProjectManager.curr_project.get_info('footage_image_folder'),
+            output_folder_path=ProjectManager.curr_project.get_info('input_image_folder'),
             step=cls.mFootageProcessStep,
             resize=cls.mFootageResize
         )
-        pm.curr_project.scan_input_images()
+        ProjectManager.curr_project.scan_input_images()
         time.sleep(1.1)
         cls.mProcessingFootage = False
 
@@ -207,33 +207,42 @@ class PrepareColmapPage(BasePage):
     page_name = 'colmap'
     page_level = 1
 
+    mColmapArgs = {}
+    mColmapArgTypes = {}
+    mColmapDisabledArgs = set()
+
     mProcessingColmap = False
     mColmapMsgs = []
-    mColmapCameraSelections = ['OPENCV']
 
     @classmethod
     def p_init(cls):
-        pass
-
+        from gui.global_userinfo import user_settings
+        cls.mColmapArgs = {
+            'no_gpu': False,
+            'skip_matching': False,
+            'source_path': ProjectManager.curr_project.get_info('data_root'),
+            'camera': "OPENCV",
+            'colmap_executable': user_settings['colmap_executable'],
+            'resize': False,
+            'magick_executable': ""
+        }
+        cls.mColmapArgTypes = c.get_arg_types(cls.mColmapArgs)
+        cls.mColmapDisabledArgs.add('source_path')
+        cls.mColmapDisabledArgs.add('magick_executable')
+        cls.mColmapDisabledArgs.add('camera')
+        cls.mColmapDisabledArgs.add('colmap_executable')
     @classmethod
     def p_call(cls):
 
         # page 2
         if imgui.button('refresh info'):
-            pm.curr_project.scan_input_images()
-            pm.curr_project.scan_sparse0()
+            ProjectManager.curr_project.scan_input_images()
+            ProjectManager.curr_project.scan_sparse0()
         PrepareSharedComponents.show_input_image_gallery(False)
 
         c.bold_text('PARAMETERS')
-        imgui.checkbox('no_gpu', False)
-        imgui.same_line()
-        imgui.checkbox('skip_matching', False)
-        imgui.same_line()
-        imgui.checkbox('resize', False)
-        imgui.input_text('source_path', pm.curr_project.get_info('data_root'))
-        imgui.combo('camera', 0, cls.mColmapCameraSelections)
-        imgui.input_text('colmap_executable', config.colmap_executable)
-        if pm.curr_project.get_info('has_sparse0'):
+        c.arg_editor(cls.mColmapArgs, cls.mColmapArgTypes, cls.mColmapDisabledArgs)
+        if ProjectManager.curr_project.get_info('has_sparse0'):
             imgui.text('already have sparse folder')
         if cls.mProcessingColmap:
             StyleModule.push_disabled_button_color()
@@ -254,15 +263,14 @@ class PrepareColmapPage(BasePage):
         from gui.utils import io_utils
 
         args = Namespace(
-            no_gpu=False,
-            skip_matching=False,
-            source_path=pm.curr_project.get_info('data_root'),
-            camera="OPENCV",
-            colmap_executable=config.colmap_executable,
-            resize=False,
-            magick_executable=""
+            no_gpu=cls.mColmapArgs['no_gpu'],
+            skip_matching=cls.mColmapArgs['skip_matching'],
+            source_path=cls.mColmapArgs['source_path'],
+            camera=cls.mColmapArgs['camera'],
+            colmap_executable=cls.mColmapArgs['colmap_executable'],
+            resize=cls.mColmapArgs['resize'],
+            magick_executable=cls.mColmapArgs['magick_executable']
         )
-        print(args)
         cls.mProcessingColmap = True
         cls.mColmapMsgs = []
         with io_utils.OutputCapture(cls.mColmapMsgs):
@@ -372,7 +380,7 @@ class PrepareColmapPage(BasePage):
                         logging.error(f"12.5% resize failed with code {exit_code}. Exiting.")
                         exit(exit_code)
             print("Done.")
-        pm.curr_project.scan_sparse0()
+        ProjectManager.curr_project.scan_sparse0()
         cls._exit_process_colmap()
 
     @classmethod

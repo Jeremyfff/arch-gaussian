@@ -4,10 +4,28 @@ from gui import components as c
 
 
 class Cell:
-    def __init__(self, name, func, allow_duplicate=False):
+    def __init__(self, name, func, allow_duplicate=False, default_opened=True):
         self.name = name
         self.func = func
         self.allow_duplicate = allow_duplicate
+
+        self.opened = default_opened
+
+    def show(self):
+        imgui.separator()
+        imgui.push_id(f'{self.name}_arrow_button')
+        imgui.push_style_var(imgui.STYLE_FRAME_PADDING, (0, 0))
+        imgui.push_style_color(imgui.COLOR_BUTTON, 0, 0, 0, 0)
+        if imgui.arrow_button('', imgui.DIRECTION_DOWN if self.opened else imgui.DIRECTION_RIGHT):
+            self.opened = not self.opened
+        imgui.pop_style_color()
+        imgui.pop_style_var()
+        imgui.pop_id()
+        imgui.same_line()
+        c.bold_text(self.name)
+        if self.opened:
+            self.func()
+        imgui.separator()
 
 
 class CellModule:
@@ -33,7 +51,4 @@ class CellModule:
             imgui.text('no cells')
             return
         for cell in self.displaying_cells:
-            imgui.separator()
-            c.bold_text(cell.name)
-            cell.func()
-            imgui.separator()
+            cell.show()
