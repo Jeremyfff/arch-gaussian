@@ -31,4 +31,12 @@ mCurrNavIdx = -1
 # shared texture
 mSharedTexture = None  # 显示在texture viewer的texture
 
+# io utils
 mLastFileDir = r'c://'
+
+# viewer content
+mImagePos = (0, 0)
+
+
+mShiftDown = False
+mCtrlDown = False

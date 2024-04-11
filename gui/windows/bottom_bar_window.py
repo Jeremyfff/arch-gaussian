@@ -1,6 +1,7 @@
 import imgui
 
 from gui import global_var as g
+from gui.modules import EventModule
 from gui.modules import LayoutModule
 from gui.windows.base_window import BaseWindow
 
@@ -22,4 +23,5 @@ class BottomBarWindow(BaseWindow):
         with LayoutModule.LayoutWindow(cls.LAYOUT_NAME):
             fps = int(1.0 / g.mFrametime)
             imgui.text(str(fps))
+
 

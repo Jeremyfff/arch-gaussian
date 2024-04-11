@@ -4,9 +4,9 @@ import imgui
 
 from gui import components as c
 from gui import global_var as g
-from gui.modules import EventModule, LayoutModule, ShadowModule
+from gui.modules import EventModule, LayoutModule
 from gui.windows.base_window import BaseWindow
-from scripts.project_manager import ProjectManager
+from scripts.project_manager import ProjectManager, ProjectDataKeys
 
 
 class NavBarWindow(BaseWindow):
@@ -25,8 +25,6 @@ class NavBarWindow(BaseWindow):
     @classmethod
     def w_update(cls):
         super().w_update()
-        if g.mCurrNavIdx == -1 and ProjectManager.curr_project is not None:
-            cls.switch_nav_idx(0)
 
     @classmethod
     def w_show(cls):
@@ -57,3 +55,16 @@ class NavBarWindow(BaseWindow):
         logging.info(f'[{cls.__name__}] nav idx changed from [{org_idx}] to [{new_idx}]')
         # event trigger
         EventModule.on_nav_idx_changed(org_idx, new_idx)
+        # project data
+        if ProjectManager.curr_project is not None:
+            ProjectManager.curr_project.set_project_data(ProjectDataKeys.LAST_NAV_IDX, i)
+
+    @classmethod
+    def on_project_change(cls):
+        if ProjectManager.curr_project is None:
+            cls.switch_nav_idx(-1)
+            return
+        cls.switch_nav_idx(ProjectManager.curr_project.get_project_data(ProjectDataKeys.LAST_NAV_IDX, 0))
+
+
+EventModule.register_project_change_callback(NavBarWindow.on_project_change)

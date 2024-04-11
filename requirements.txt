@@ -18,3 +18,5 @@ dearpygui
 flask
 comtypes
 pyperclip
+imnodeeditor
+datasets

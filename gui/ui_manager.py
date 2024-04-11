@@ -3,7 +3,7 @@ from ImNodeEditor import NE
 from gui.modules import LayoutModule, EventModule, ShadowModule, ALL_MODULES
 from gui.windows import ALL_WINDOWS, POPUP_WINDOWS
 from scripts.project_manager import ProjectManager
-
+from gui import global_var as g
 
 class UIManager:
 
@@ -40,7 +40,16 @@ class UIManager:
     def u_key_event(cls, key, action, modifiers):
         NE.handle_key_event(key, action, modifiers)
         EventModule.key_event(key, action, modifiers)
-
+        if action=="ACTION_PRESS":
+            if key == 65505:
+                g.mShiftDown = True
+            if key == 65507:
+                g.mCtrlDown = True
+        elif action == "ACTION_RELEASE":
+            if key == 65505:
+                g.mShiftDown = False
+            if key == 65507:
+                g.mCtrlDown = False
     @classmethod
     def u_mouse_position_event(cls, x, y, dx, dy):
         NE.handle_mouse_position_event(x, y, dx, dy)

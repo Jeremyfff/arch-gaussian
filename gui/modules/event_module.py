@@ -18,7 +18,7 @@ class EventModule(BaseModule):
 
     @classmethod
     def m_init(cls):
-        pass
+        super().m_init()
 
     @classmethod
     def register_resize_callback(cls, func: Callable[[int, int], None]):
@@ -210,4 +210,33 @@ class EventModule(BaseModule):
         for func in cls._camera_manager_change_callbacks:
             func(camera_manager)
 
-    _operation_panel_show_callbacks = set()
+    _get_depth_callbacks = set()
+
+    @classmethod
+    def register_get_depth_callback(cls, func: Callable):
+        cls._get_depth_callbacks.add(func)
+
+    @classmethod
+    def unregister_get_depth_callback(cls, func):
+        cls._get_depth_callbacks.remove(func)
+
+    @classmethod
+    def on_get_depth(cls, geo_depth, geo_target, gaussian_depth, gaussian_target):
+        """几何体距离， 几何体目标点， 高斯距离， 高斯目标点， 综合距离， 综合目标点"""
+        for func in cls._get_depth_callbacks:
+            func(geo_depth, geo_target, gaussian_depth, gaussian_target)
+
+    _project_changed_callbacks = set()
+
+    @classmethod
+    def register_project_change_callback(cls, func: Callable):
+        cls._project_changed_callbacks.add(func)
+
+    @classmethod
+    def unregister_project_change_callback(cls, func):
+        cls._project_changed_callbacks.remove(func)
+
+    @classmethod
+    def on_project_change(cls):
+        for func in cls._project_changed_callbacks:
+            func()

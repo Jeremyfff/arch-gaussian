@@ -1,5 +1,10 @@
 import logging
 import os
+import sys
+import os
+path = os.path.join(os.getcwd(), "src")
+if not path in sys.path:
+    sys.path.append(path)
 import imgui
 import moderngl_window as mglw
 from ImNodeEditor import NE
@@ -12,7 +17,7 @@ from gui.ui_manager import UIManager
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s')  # 设置日志记录器的级别为 DEBUG
 
-
+# import ctypes
 # ctypes.windll.user32.SetProcessDPIAware()
 
 class WindowEvents(mglw.WindowConfig):

@@ -46,8 +46,8 @@ class ShadowModule(BaseModule):
         cls._rect_max_list.clear()
         cls._active_list.clear()
         for window in windows:
-            assert window.__base__ == cls._popup_window_class, \
-                f'[{window.__name__}] window must be instance of {cls._popup_window_class.__name__}'
+            # assert window.__base__ == cls._popup_window_class, \
+            #     f'[{window.__name__}] window must be instance of {cls._popup_window_class.__name__}'
             if not window.is_opened():
                 continue
             cls._rect_min_list.append(np.array(window.get_rect_min()))

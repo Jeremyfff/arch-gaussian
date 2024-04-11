@@ -1,5 +1,3 @@
-import copy
-import logging
 import uuid
 from abc import abstractmethod
 from typing import Union, Optional
@@ -11,6 +9,8 @@ from gui import components as c
 from gui import global_var as g
 from gui.graphic import geometry
 from gui.graphic.geometry import BaseGeometry, BaseGeometry3D
+from gui.modules import EventModule
+from gui.utils import name_utils
 
 SUPPORTED_GEO_TYPES = Union[BaseGeometry, BaseGeometry3D]
 
@@ -89,122 +89,142 @@ class PointCloudCollection(GeometryCollection):
 
 
 class GaussianCollection(GeometryCollection):
-    def __init__(self, name, camera):
+    def __init__(self, name, camera, debug_collection=None):
+        """
+        GaussianPointCloud的集合
+
+        可以附带指定一个debug_collection， 用于显示debug图形信息
+        """
         super().__init__(name, camera)
-        from src.manager.gaussian_manager import GaussianManager
-        self.final_gm: Optional[GaussianManager] = None
+
         import torch
         self.torch = torch
+        from gui.windows import GaussianInspectorWindow
+        self.InspectorWindow = GaussianInspectorWindow
+        from src.manager.gaussian_manager import GaussianManager
+
+        self.final_gm: Optional[GaussianManager] = None
+        """当Collection中有多个GaussianPointCloud时， 合并后的最终GaussianPointCloud"""
+
+        self.InspectorWindow.register_w_close_event(self._clear_imgui_curr_selected_geo_idx)
 
         self.geometries: list[geometry.GaussianPointCloud] = []  # 指定类型用
-        self._geometries_to_delete = set()  # 将要被删除的geo
+        self.debug_collection: Optional[DebugCollection] = debug_collection
+
+        self._imgui_curr_selected_geo_idx = -1
+        EventModule.register_get_depth_callback(self.on_get_depth)
 
     def set_gaussian_manager(self, gm):
-        """兼容GaussianPointCloud, 一般在一个gm的时候使用
-        如果gm为None， 则清空场景的geometries"""
+        """
+        清空场景中的所有geometries(Gaussian Point Cloud)，
+        并由该gm(Gaussian Manager)创建一个新的Gaussian Point Cloud， 添加到场景中。
+
+        如果gm为None， 则清空场景的geometries
+
+        该方法由上层的GaussianRenderer.set_gaussian_manager(gm)调用
+        """
         self.geometries = []
         if gm is not None:
             self.add_gaussian_manager(gm)
-        self.merge_gaussian()
+        self.merge_gaussians()
 
-    def add_gaussian_manager(self, gm, name=None):
+    def add_gaussian_manager(self, gm):
+        """向场景中添加一个新的Gaussian Point Cloud， 其包裹传入的gm(Gaussian Manager)"""
         if gm is None:
             return
-        if name is None:
-            name = str(uuid.uuid4())
-        gs_pt_cloud = geometry.GaussianPointCloud(name)
-        gs_pt_cloud.set_gaussian_manager(gm)
-        gs_pt_cloud.update_gaussian_points()
+        name = name_utils.ply_path_to_model_name(gm.source_ply_path)
+        if name == '':
+            name_idx = name_utils.get_next_name_idx([geo.name for geo in self.geometries])
+            name = f"gaussian_{name_idx}"
+        else:
+            name_idx = name_utils.get_next_name_idx([geo.name for geo in self.geometries if geo.name.startswith(name)])
+            name = f"{name}_{name_idx}" if name_idx > 0 else name
+        gs_pt_cloud = geometry.GaussianPointCloud(
+            name=name, gaussian_manager=gm, debug_collection=self.debug_collection
+        )
+        gs_pt_cloud.generate_gaussian_points()
         self.add_geometry(gs_pt_cloud)
         return gs_pt_cloud
 
-    def add_gaussian_from_file(self, file_path=None):
-        if file_path is None:
-            from gui.utils.io_utils import open_file_dialog
-            file_path = open_file_dialog()
-        if file_path == '':
-            return
+    def merge_gaussians(self):
         from src.manager.gaussian_manager import GaussianManager
-        from gui.contents.pages.train_3dgs_pages import FullTrainingPage
-        args = FullTrainingPage.gen_config_args()
-        try:
-            self.add_gaussian_manager(GaussianManager(args, None, file_path))
-        except Exception as e:
-            logging.error(e)
-
-    def merge_gaussian(self):
-        if len(self.geometries) == 0:
-            logging.warning('no gaussian pt cloud in this collection')
-            self.final_gm = None
-            return
-        if len(self.geometries) == 1:
-            self.final_gm = self.geometries[0].gm
-            return
-        logging.info('merging gaussian')
-        with self.torch.no_grad():
-            self.final_gm = copy.deepcopy(self.geometries[0].gm)
-            final_xyz_list = []
-            final_features_dc_list = []
-            final_features_rest_list = []
-            final_scaling_list = []
-            final_rotation_list = []
-            final_opacity_list = []
-            final_max_radii2D_list = []
-            for i, gs_pt_cloud in enumerate(self.geometries):
-                gaussians = gs_pt_cloud.gm.gaussians
-                final_xyz_list.append(gaussians._xyz.detach())
-                final_features_dc_list.append(gaussians._features_dc.detach())
-                final_features_rest_list.append(gaussians._features_rest.detach())
-                final_scaling_list.append(gaussians._scaling.detach())
-                final_rotation_list.append(gaussians._rotation.detach())
-                final_opacity_list.append(gaussians._opacity.detach())
-                final_max_radii2D_list.append(gaussians.max_radii2D.detach())
-
-            self.final_gm.gaussians._xyz = self.torch.cat(final_xyz_list, dim=0)
-            self.final_gm.gaussians._features_dc = self.torch.cat(final_features_dc_list, dim=0)
-            self.final_gm.gaussians._features_rest = self.torch.cat(final_features_rest_list, dim=0)
-            self.final_gm.gaussians._scaling = self.torch.cat(final_scaling_list, dim=0)
-            self.final_gm.gaussians._rotation = self.torch.cat(final_rotation_list, dim=0)
-            self.final_gm.gaussians._opacity = self.torch.cat(final_opacity_list, dim=0)
-            self.final_gm.gaussians.max_radii2D = self.torch.cat(final_max_radii2D_list, dim=0)
+        self.final_gm = GaussianManager.merge_gaussian_managers([geo.gm for geo in self.geometries])
 
     def render_gaussian(self) -> Optional[np.ndarray]:
+        """使用3dgs提供的接口渲染画面， 返回图像array"""
         if self.final_gm is None:
             return None
         return self.final_gm.render(self.camera, convert_to_rgba_arr=True)
 
     def render(self):
+        """常规渲染方法，使用opengl渲染点云（主要用作深度测试）"""
         super().render()
 
+    def on_get_depth(self, *args, **kwargs):
+        _ = self
+        pass
+
+    def _clear_imgui_curr_selected_geo_idx(self):
+        self._imgui_curr_selected_geo_idx = -1
+
     def operation_panel(self):
-        changed = False
-        c.bold_text(f'[{self.__class__.__name__}]')
-        if c.icon_text_button('file-add-fill', 'Add Gaussian'):
-            self.add_gaussian_from_file()
-            changed |= True
-        c.easy_tooltip('Add Gaussian From Ply file')
-        imgui.same_line()
-        if c.icon_text_button('stack-fill', 'Merge Gaussian'):
-            self.merge_gaussian()
-        c.easy_tooltip('Merge Gaussian Manually')
+        self._operation_panel_buttons_region()
         imgui.separator()
-        imgui.text('GAUSSIANS')
-        c.begin_child(f'{self.name}_child', 0, 200 * g.GLOBAL_SCALE, border=True)
-        self._geometries_to_delete.clear()  # 清空删除列表
-        for gs_pt_cloud in self.geometries:
-            if imgui.begin_menu(gs_pt_cloud.name).opened:
-                changed, delete_self = gs_pt_cloud.operation_panel()
-                if delete_self:
-                    # 加入删除列表
-                    self._geometries_to_delete.add(gs_pt_cloud)
-                imgui.end_menu()
+        self._operation_panel_list_region()
+
+    def _operation_panel_buttons_region(self):
+        # region ADD BUTTON ===============================================================
+        gm = c.load_gaussian_from_custom_file_button(uid="load_gaussian_from_custom_file_button_in_gaussian_collection")
+        if gm is not None:
+            self.add_gaussian_manager(gm)
+            self.merge_gaussians()
+        imgui.same_line()
+        gm = c.load_gaussian_from_iteration_button(uid="load_gaussian_from_iteration_button_in_gaussian_collection")
+        if gm is not None:
+            self.add_gaussian_manager(gm)
+            self.merge_gaussians()
+        # endregion =======================================================================
+
+        # region MERGE BUTTON =============================================================
+        if c.icon_text_button('stack-fill', 'Merge Gaussian'):
+            self.merge_gaussians()
+        c.easy_tooltip('Merge Gaussian Manually')
+        # endregion =======================================================================
+
+    def _operation_panel_list_region(self):
+        # region GAUSSIANS LIST ===========================================================
+        # GUI -----------------------------------------------------------------------------
+        imgui.text('GAUSSIANS LIST')
+        c.begin_child(f'{self.name}_child', 0, 100 * g.GLOBAL_SCALE, border=True)
+        only_have_one_geo = len(self.geometries) == 1
+        for i, gs_pt_cloud in enumerate(self.geometries):
+            selected = i == self._imgui_curr_selected_geo_idx
+            opened, selected = imgui.selectable(gs_pt_cloud.name, selected)
+            if opened and selected:
+                print(f'opened and selected {i}')
+                self._imgui_curr_selected_geo_idx = i
+                self.InspectorWindow.register_content(gs_pt_cloud.operation_panel, is_the_only_geo=only_have_one_geo)
+        # 取消选择
+        if imgui.is_mouse_clicked(0) and imgui.is_window_hovered() and not imgui.is_any_item_hovered():
+            self._clear_imgui_curr_selected_geo_idx()
+            self.InspectorWindow.unregister_content()
         imgui.end_child()
-        # 删除逻辑
-        for gs_pt_cloud in self._geometries_to_delete:
-            self.remove_geometry(gs_pt_cloud)
+        # END GUI -------------------------------------------------------------------------
+        # LOGICS --------------------------------------------------------------------------
+        results = self.InspectorWindow.get_results()
+        if results:
+            changed, delete_self = results
+        else:
+            changed, delete_self = False, False
+        # delete
+        if delete_self:
+            self.remove_geometry(self.geometries[self._imgui_curr_selected_geo_idx])
+            self.InspectorWindow.w_close()
         # merge
         if changed:
-            self.merge_gaussian()
+            self.merge_gaussians()
+        # END LOGICS ----------------------------------------------------------------------
+        # endregion =======================================================================
 
     def show_debug_info(self):
         c.bold_text(f'[{self.__class__.__name__}]')
@@ -216,7 +236,117 @@ class GaussianCollection(GeometryCollection):
         if imgui.begin_popup('op_panel'):
             self.operation_panel()
             imgui.end_popup()
-        # imgui.indent()
-        # for ps_pt_cloud in self.geometries:
-        #     ps_pt_cloud.show_debug_info()
-        # imgui.unindent()
+
+
+class DebugCollection(GeometryCollection):
+    """用于显示各种debug物体, 这是一种特殊的collection， 其物体每帧刷新"""
+
+    def __init__(self, name, camera):
+        super().__init__(name, camera)
+
+    def draw_bbox(self, bbox, skip_examine=False):
+        if not skip_examine:
+            if bbox in self.geometries:
+                return
+
+        self.geometries.append(bbox)
+
+    def draw_cube(self, cube, skip_examine=False):
+        if not skip_examine:
+            if cube in self.geometries:
+                return
+        self.geometries.append(cube)
+
+    def draw_geo(self, geo, skip_examine=False):
+        if not skip_examine:
+            if geo in self.geometries:
+                return
+        self.geometries.append(geo)
+
+    def render(self):
+        super().render()
+        self.geometries.clear()
+
+    def operation_panel(self):
+        pass
+
+    def show_debug_info(self):
+        pass
+
+
+class MyCustomGeometryCollection(GeometryCollection):
+    def __init__(self, name, camera):
+        super().__init__(name, camera)
+        from gui.windows import GeometryInspectorWindow
+        self.InspectorWindow = GeometryInspectorWindow
+        self.InspectorWindow.register_w_close_event(self._clear_imgui_curr_selected_geo_idx)
+
+        self._imgui_curr_selected_geo_idx = -1
+
+    def _clear_imgui_curr_selected_geo_idx(self):
+        self._imgui_curr_selected_geo_idx = -1
+
+    def operation_panel(self):
+        changed = False
+        c.bold_text(f'[GEOMETRY COLLECTION SETTINGS]')
+        # region ADD BUTTON ===============================================================
+        if c.icon_text_button('file-add-fill', 'Add Geo', uid="MCGCOP_Add_Geo"):
+            imgui.open_popup("MCGCOP_add_geo_popup")
+        if imgui.begin_popup("MCGCOP_add_geo_popup"):
+            if imgui.menu_item("add cube simple")[0]:
+                all_cube_names = [geo.name for geo in self.geometries if geo.name.startswith('cube')]
+                geo_name = f"cube_{name_utils.get_next_name_idx(all_cube_names)}"
+                self.add_geometry(geometry.SimpleCube(geo_name))
+            if imgui.menu_item("add wired box")[0]:
+                all_wired_box_names = [geo.name for geo in self.geometries if geo.name.startswith('wired_box')]
+                geo_name = f"wired_box_{name_utils.get_next_name_idx(all_wired_box_names)}"
+                self.add_geometry(geometry.WiredBoundingBox(geo_name, (-1, -1, -1), (1, 1, 1)))
+            if imgui.menu_item("add polygon 3d")[0]:
+                all_polygon_names = [geo.name for geo in self.geometries if geo.name.startswith('polygon3d')]
+                geo_name = f"polygon3d_{name_utils.get_next_name_idx(all_polygon_names)}"
+                self.add_geometry(
+                    geometry.Polygon3D(geo_name,
+                                       np.array([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]),
+                                       -10, 10))
+            if imgui.menu_item("add polygon 2d")[0]:
+                all_polygon_names = [geo.name for geo in self.geometries if geo.name.startswith('polygon2d')]
+                geo_name = f"polygon2d_{name_utils.get_next_name_idx(all_polygon_names)}"
+                self.add_geometry(
+                    geometry.Polygon(geo_name,
+                                       np.array([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)])))
+            imgui.end_popup()
+        # endregion =======================================================================
+
+        # region GEO LIST ===========================================================
+        # GUI -----------------------------------------------------------------------------
+        imgui.text('GEOMETRY LIST')
+        c.begin_child(f'{self.name}_child', 0, 200 * g.GLOBAL_SCALE, border=True)
+
+        for i, geo in enumerate(self.geometries):
+            selected = i == self._imgui_curr_selected_geo_idx
+            opened, selected = imgui.selectable(geo.name, selected)
+            if opened and selected:
+                self._imgui_curr_selected_geo_idx = i
+                self.InspectorWindow.register_content(geo.operation_panel)
+        # 取消选择
+        if imgui.is_mouse_clicked(0) and imgui.is_window_hovered() and not imgui.is_any_item_hovered():
+            self._clear_imgui_curr_selected_geo_idx()
+            self.InspectorWindow.unregister_content()
+        imgui.end_child()
+        # END GUI -------------------------------------------------------------------------
+        # LOGICS --------------------------------------------------------------------------
+        results = self.InspectorWindow.get_results()
+        if results:
+            changed, delete_self = results
+        else:
+            changed = False
+            delete_self = False
+        # delete
+        if delete_self:
+            self.remove_geometry(self.geometries[self._imgui_curr_selected_geo_idx])
+            self.InspectorWindow.w_close()
+        # END LOGICS ----------------------------------------------------------------------
+        # endregion =======================================================================
+
+    def show_debug_info(self):
+        pass

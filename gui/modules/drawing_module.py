@@ -10,7 +10,7 @@ DrawListTypes = Literal['window', 'foreground', 'background', 'overlay']
 class DrawingModule(BaseModule):
     @classmethod
     def m_init(cls):
-        pass
+        super().m_init()
 
     @classmethod
     def get_draw_list(cls, draw_list_type: DrawListTypes):
@@ -53,7 +53,13 @@ class DrawingModule(BaseModule):
 
     @classmethod
     def draw_image(cls, texture_id, upper_left_x, upper_left_y, lower_right_x,
-                         lower_right_y, uv_a=(0, 0), uv_b=(1, 1), col=(1, 1, 1, 1),
+                   lower_right_y, uv_a=(0, 0), uv_b=(1, 1), col=(1, 1, 1, 1),
                    draw_list_type: DrawListTypes = 'window'):
         draw_list = cls.get_draw_list(draw_list_type)
-        draw_list.add_image(texture_id, (upper_left_x, upper_left_y), (lower_right_x, lower_right_y), uv_a, uv_b, imgui.get_color_u32_rgba(*col))
+        draw_list.add_image(texture_id, (upper_left_x, upper_left_y), (lower_right_x, lower_right_y), uv_a, uv_b,
+                            imgui.get_color_u32_rgba(*col))
+
+    @classmethod
+    def draw_line(cls, start_x, start_y, end_x, end_y, col, thickness=1.0, draw_list_type: DrawListTypes = 'window'):
+        draw_list = cls.get_draw_list(draw_list_type)
+        draw_list.add_line(start_x, start_y, end_x, end_y, imgui.get_color_u32_rgba(*col), thickness)

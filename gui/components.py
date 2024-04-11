@@ -1,6 +1,6 @@
+import logging
 import os
 import time
-from enum import Enum
 from typing import Callable
 
 import imgui
@@ -9,7 +9,7 @@ from moderngl import Texture
 from gui import global_var as g
 from gui.modules import StyleModule
 from gui.modules import texture_module
-from gui.utils import color_utils
+from gui.utils import arg_utils, io_utils, color_utils
 from scripts.project_manager import ProjectManager
 
 
@@ -48,6 +48,18 @@ def gray_text(content):
     imgui.pop_style_color()
     imgui.set_window_font_scale(1.0)
 
+
+def warning_text(content):
+    color = color_utils.align_alpha(StyleModule.COLOR_WARNING, g.mImguiStyle.colors[imgui.COLOR_TEXT])
+    imgui.push_style_color(imgui.COLOR_TEXT, *color)
+    imgui.text(content)
+    imgui.pop_style_color()
+
+def highlight_text(content):
+    color = color_utils.align_alpha(StyleModule.COLOR_PRIMARY, g.mImguiStyle.colors[imgui.COLOR_TEXT])
+    imgui.push_style_color(imgui.COLOR_TEXT, *color)
+    imgui.text(content)
+    imgui.pop_style_color()
 
 def icon_image(icon_name, width=None, height=None, uv0=(0, 0), uv1=(1, 1), tint_color=(1, 1, 1, 1),
                border_color=(0, 0, 0, 0), padding=False):
@@ -92,22 +104,29 @@ def selectable_region(name, width, height, content: Callable, *args):
     return clicked
 
 
-def _draw_icon_and_text(icon, text):
+def _draw_icon_and_text(icon, text, text_width, align_center):
     pos = imgui.get_cursor_pos()
     imgui.set_cursor_pos((pos[0] + g.mImguiStyle.frame_padding[0], pos[1] + g.mImguiStyle.frame_padding[1]))
     size = imgui.get_frame_height() - g.mImguiStyle.frame_padding[1] * 2
     icon_image(icon, size, size)
     imgui.same_line()
+    if align_center:
+        indent = (imgui.get_content_region_available_width() - text_width) / 2
+        imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + indent)
     imgui.text(text)
 
 
-def icon_text_button(icon, text, width=None, height=None):
+def icon_text_button(icon, text, width=None, height=None, align_center=False, uid=None):
+    text_width = imgui.calc_text_size(text)[0]
     if width is None:
-        width = imgui.calc_text_size(text)[0] + imgui.get_frame_height() + \
+        width = text_width + imgui.get_frame_height() + \
                 g.mImguiStyle.item_spacing[0]
     if height is None:
         height = imgui.get_frame_height()
-    return selectable_region(f'icon_text_button_{icon}_{text}', width, height, _draw_icon_and_text, icon, text)
+
+    return selectable_region(uid if uid is not None else f'icon_text_button_{icon}_{text}', width, height,
+                             _draw_icon_and_text, icon, text,
+                             text_width, align_center)
 
 
 def _draw_icon_and_double_text(icon, text1, text2):
@@ -137,10 +156,14 @@ def icon_double_text_button(icon, text1, text2, width=None, height=None):
         width = max_text_width + imgui.get_frame_height() + g.mImguiStyle.item_spacing[0] + g.mImguiStyle.frame_padding[
             0] * 1  # frame padding = icon(-2 + 1) + border 2 = 1
     if height is None:
-        height = g.FONT_SIZE * 2 + g.mImguiStyle.item_spacing[1] + g.mImguiStyle.frame_padding[1] * 2
+        height = get_icon_double_text_button_height()
     return selectable_region(f'icon_text_button_{icon}_{text1}_{text2}', width, height, _draw_icon_and_double_text,
                              icon,
                              text1, text2)
+
+
+def get_icon_double_text_button_height():
+    return g.FONT_SIZE * 2 + g.mImguiStyle.item_spacing[1] + g.mImguiStyle.frame_padding[1] * 2
 
 
 def easy_tooltip(content):
@@ -255,21 +278,8 @@ def quick_menu_item(label, callback=None):
             callback()
 
 
-class ArgType(Enum):
-    NONE = -1
-    INTEGER = 0
-    FLOAT = 1
-    STRING = 2
-    PATH = 3
-    BOOLEAN = 4
-    DICT = 5
-    FLOAT2 = 6
-    INT2 = 7
-    FOLDER = 8
-    OPTIONAL_INT = 9
-
-
 def get_arg_types(args: dict):
+    from gui.utils.arg_utils import ArgType
     arg_types_dict = {}
     for key in args.keys():
         value = args[key]
@@ -311,7 +321,6 @@ def get_arg_types(args: dict):
 
 def arg_editor(args: dict, arg_type_dict: dict, disabled_keys: set = None, hidden_keys: set = None,
                custom_lines: dict[any:Callable] = None):
-    from gui.utils import io_utils
     width = imgui.get_content_region_available_width() / 2
     style: imgui.core.GuiStyle = imgui.get_style()
 
@@ -341,28 +350,28 @@ def arg_editor(args: dict, arg_type_dict: dict, disabled_keys: set = None, hidde
             imgui.input_text(key, args[key], -1, imgui.INPUT_TEXT_READ_ONLY)
             imgui.pop_style_color()
             continue
-        tp: ArgType = arg_type_dict[key]
-        if tp == ArgType.INTEGER:
+        tp: arg_utils.ArgType = arg_type_dict[key]
+        if tp == arg_utils.ArgType.INTEGER:
             imgui.set_next_item_width(width)
             changed, args[key] = imgui.input_int(key, args[key])
             any_change |= changed
             continue
-        if tp == ArgType.FLOAT:
+        if tp == arg_utils.ArgType.FLOAT:
             imgui.set_next_item_width(width)
             changed, args[key] = imgui.input_float(key, args[key], format='%.5f')
             any_change |= changed
             continue
-        if tp == ArgType.BOOLEAN:
+        if tp == arg_utils.ArgType.BOOLEAN:
             imgui.set_next_item_width(width)
             changed, args[key] = imgui.checkbox(key, args[key])
             any_change |= changed
             continue
-        if tp == ArgType.STRING:
+        if tp == arg_utils.ArgType.STRING:
             imgui.set_next_item_width(width)
             changed, args[key] = imgui.input_text(key, args[key])
             any_change |= changed
             continue
-        if tp == ArgType.PATH:
+        if tp == arg_utils.ArgType.PATH:
             imgui.set_next_item_width(width - 45 * g.GLOBAL_SCALE - style.item_spacing[0])
             imgui.push_id(key)
             changed, args[key] = imgui.input_text('', args[key])
@@ -375,7 +384,7 @@ def arg_editor(args: dict, arg_type_dict: dict, disabled_keys: set = None, hidde
             imgui.same_line()
             imgui.text(key)
             continue
-        if tp == ArgType.FOLDER:
+        if tp == arg_utils.ArgType.FOLDER:
             imgui.set_next_item_width(width - 45 * g.GLOBAL_SCALE - style.item_spacing[0])
             imgui.push_id(key)
             changed, args[key] = imgui.input_text('', args[key])
@@ -387,17 +396,17 @@ def arg_editor(args: dict, arg_type_dict: dict, disabled_keys: set = None, hidde
             imgui.pop_id()
             imgui.same_line()
             imgui.text(key)
-        if tp == ArgType.FLOAT2:
+        if tp == arg_utils.ArgType.FLOAT2:
             imgui.set_next_item_width(width)
             changed, args[key] = imgui.input_float2(key, *args[key])
             any_change |= changed
             continue
-        if tp == ArgType.INT2:
+        if tp == arg_utils.ArgType.INT2:
             imgui.set_next_item_width(width)
             changed, args[key] = imgui.input_int2(key, *args[key])
             any_change |= changed
             continue
-        if tp == ArgType.OPTIONAL_INT:
+        if tp == arg_utils.ArgType.OPTIONAL_INT:
             imgui.push_id(key)
             state_key = f'${key}_enabled'
             value_key = f'${key}_value'
@@ -422,3 +431,88 @@ def arg_editor(args: dict, arg_type_dict: dict, disabled_keys: set = None, hidde
                 args[key] = args[value_key] if args[state_key] else None
             imgui.pop_id()
     return any_change
+
+
+_imgui_curr_selected_iteration_folder_idx = -1
+
+
+def load_gaussian_from_iteration_button(display_text="From Iteration", display_icon="menu-line",
+                                        tooltip="Load Gaussian From Project Output", primary_color=True,
+                                        uid=None):
+    """加载成功返回Gaussian Manager， 未加载或失败返回None"""
+    global _imgui_curr_selected_iteration_folder_idx
+
+    gm = None
+    if primary_color:
+        StyleModule.push_highlighted_button_color()
+    load_file_from_iteration = icon_text_button(
+        display_icon, display_text, width=imgui.get_content_region_available_width(), align_center=True, uid=uid)
+    if primary_color:
+        StyleModule.pop_button_color()
+    easy_tooltip(tooltip)
+    if load_file_from_iteration:
+        imgui.open_popup(f'select_ply_from_iteration_{uid}')
+
+    if imgui.begin_popup(f'select_ply_from_iteration_{uid}'):
+        output_point_cloud_folder = ProjectManager.curr_project.info['output_point_cloud_folder']
+        output_iteration_folders: list = ProjectManager.curr_project.info['output_iteration_folder_names']
+        output_iteration_folder_paths = ProjectManager.curr_project.info['output_iteration_folder_paths']
+        if len(output_point_cloud_folder) > 30:
+            imgui.text(f'{output_point_cloud_folder[:30]}...')
+        else:
+            imgui.text(output_point_cloud_folder)
+        easy_tooltip(output_point_cloud_folder)
+        _, _imgui_curr_selected_iteration_folder_idx = imgui.listbox(
+            '', _imgui_curr_selected_iteration_folder_idx,
+            output_iteration_folders)
+        StyleModule.push_highlighted_button_color()
+        if icon_text_button('checkbox-circle-line', 'Load', width=imgui.get_content_region_available_width() / 2):
+            try:
+                from src.manager.gaussian_manager import GaussianManager
+                args = arg_utils.gen_config_args()
+                selected_folder_name = output_iteration_folders[_imgui_curr_selected_iteration_folder_idx]
+                selected_folder_path = output_iteration_folder_paths[_imgui_curr_selected_iteration_folder_idx]
+                loaded_iteration = int(selected_folder_name.replace('iteration_', ''))
+                ply_path = os.path.join(selected_folder_path, 'point_cloud.ply')
+                args.loaded_iter = loaded_iteration
+                gm = GaussianManager(args, scene_info=None, custom_ply_path=ply_path)
+
+            except Exception as e:
+                logging.error(e)
+        StyleModule.pop_button_color()
+        imgui.same_line()
+        if icon_text_button('refresh-line', 'Refresh Info', width=imgui.get_content_region_available_width()):
+            ProjectManager.curr_project.scan_output()
+            _imgui_curr_selected_iteration_folder_idx = 0
+        imgui.end_popup()
+    return gm
+
+
+def load_gaussian_from_custom_file_button(display_text='From Custom File', display_icon='folder-open-line',
+                                          tooltip='Load Gaussian From Custom File', uid=None):
+    """加载成功返回Gaussian Manager， 未加载或失败返回None"""
+    gm = None
+    load_file_from_custom_file = icon_text_button(
+        display_icon, display_text, width=imgui.get_content_region_available_width() / 2, uid=uid)
+    easy_tooltip(tooltip)
+    if load_file_from_custom_file:
+        ply_path = io_utils.open_file_dialog()
+        if ply_path != '' and ply_path is not None:
+            try:
+                from src.manager.gaussian_manager import GaussianManager
+                args = arg_utils.gen_config_args()
+                gm = GaussianManager(args, scene_info=None, custom_ply_path=ply_path)
+            except Exception as e:
+                logging.error(e)
+    return gm
+
+
+def text_with_max_length(text, max_length):
+    max_length = max(max_length, 3)  # 最小支持三位
+    if len(text) > max_length:
+        display_text = text[:max_length - 3]
+        display_text = f"{display_text}..."
+        imgui.text(display_text)
+        easy_tooltip(text)
+    else:
+        imgui.text(text)

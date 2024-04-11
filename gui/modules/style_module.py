@@ -7,6 +7,7 @@ from gui.utils import color_utils
 
 class StyleModule(BaseModule):
     COLOR_GRAY = (0.6, 0.6, 0.6, 1)
+    COLOR_DARK_GRAY = (0.3, 0.3, 0.3, 1)
     COLOR_WHITE = (1, 1, 1, 1)
     COLOR_BLACK = (0, 0, 0, 1)
     COLOR_BLUE = (0.2, 0.41, 0.68, 1)
@@ -19,14 +20,18 @@ class StyleModule(BaseModule):
     COLOR_SUCCESS = COLOR_GREEN
     COLOR_WARNING = COLOR_YELLOW
     COLOR_DANGER = COLOR_RED
+    COLOR_DISABLED = COLOR_DARK_GRAY
+
+    COLOR_PRIMARY_LIGHTENED = color_utils.lighten_color(COLOR_PRIMARY, 0.1)
 
     @classmethod
     def m_init(cls):
+        super().m_init()
         style: imgui.core.GuiStyle = imgui.get_style()
         g.mImguiStyle = style
 
         style.colors[imgui.COLOR_TEXT] = (1.00, 1.00, 1.00, 1.00)
-        style.colors[imgui.COLOR_WINDOW_BACKGROUND] = (0.12, 0.12, 0.12, 1.00)
+        style.colors[imgui.COLOR_WINDOW_BACKGROUND] = (0.12, 0.12, 0.12, 0.95)
         style.colors[imgui.COLOR_BORDER] = (0.20, 0.20, 0.20, 0.50)
         style.colors[imgui.COLOR_FRAME_BACKGROUND] = (0.32, 0.32, 0.32, 0.54)
         style.colors[imgui.COLOR_FRAME_BACKGROUND_HOVERED] = (0.73, 0.73, 0.73, 0.40)
@@ -64,14 +69,20 @@ class StyleModule(BaseModule):
 
     @classmethod
     def push_highlighted_button_color(cls):
-        imgui.push_style_color(imgui.COLOR_BUTTON,
-                               *color_utils.align_alpha(cls.COLOR_PRIMARY, g.mImguiStyle.colors[imgui.COLOR_BUTTON]))
+        color = color_utils.align_alpha(cls.COLOR_PRIMARY, g.mImguiStyle.colors[imgui.COLOR_BUTTON])
+        lighten_color = color_utils.align_alpha(cls.COLOR_PRIMARY_LIGHTENED, g.mImguiStyle.colors[imgui.COLOR_BUTTON])
+
+        imgui.push_style_color(imgui.COLOR_BUTTON, *color)
+        imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *lighten_color)
+        imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, *color)
 
     @classmethod
     def pop_button_color(cls):
-        imgui.pop_style_color()
+        imgui.pop_style_color(3)
 
     @classmethod
     def push_disabled_button_color(cls):
-        imgui.push_style_color(imgui.COLOR_BUTTON,
-                               *color_utils.align_alpha(cls.COLOR_GRAY, g.mImguiStyle.colors[imgui.COLOR_BUTTON]))
+        color = color_utils.align_alpha(cls.COLOR_DISABLED, g.mImguiStyle.colors[imgui.COLOR_BUTTON])
+        imgui.push_style_color(imgui.COLOR_BUTTON, *color)
+        imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, *color)
+        imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *color)

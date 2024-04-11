@@ -1,19 +1,22 @@
 import atexit
 import json
-import logging
 import os
 
 # user data 是一些记录用户信息的数据，用户无法编辑
 default_user_data = {
-    'last_nav_idx': -1,
     'layout_level3_left_width': 400,
+    'recent_project_names': [],
+    'recent_project_paths': []
 }
 user_data = {}
 
 # user settings是记录用户设置和偏好的数据，用户可以编辑
 default_user_settings = {
     'project_repository_folder': '',
-    'colmap_executable': ''
+    'colmap_executable': '',
+    'move_scroll_speed': 0.1,
+    'scale_scroll_speed': 0.1,
+    'rotate_scroll_speed': 1
 }
 
 user_settings = {}
@@ -38,6 +41,7 @@ def _load_user_settings_items(json_data):
             print(f'{key} in user settings not found in json data, use default value')
             user_settings[key] = default_user_settings[key]
 
+
 def load_user_data():
     global user_data
     user_data_path = '.userdata'
@@ -53,6 +57,7 @@ def load_user_data():
         user_data = default_user_data.copy()
     print(user_data)
 
+
 def load_user_settings():
     global user_settings
     user_settings_path = '.usersettings'
@@ -67,6 +72,8 @@ def load_user_settings():
 
         user_settings = default_user_settings.copy()
     print(user_settings)
+
+
 def save_user_data():
     assert user_data != {}
     user_data_path = '.userdata'
@@ -95,6 +102,22 @@ def clear_user_settings():
     global user_settings
     print(f'user settings reset to default')
     user_settings = default_user_settings
+
+
+def get_user_data(key):
+    return user_data[key]
+
+
+def set_user_data(key, value):
+    user_data[key] = value
+
+
+def get_user_settings(key):
+    return user_settings[key]
+
+
+def set_user_settings(key, value):
+    user_settings[key] = value
 
 
 load_user_data()

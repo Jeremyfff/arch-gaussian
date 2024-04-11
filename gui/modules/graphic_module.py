@@ -90,6 +90,18 @@ class FrameBufferTexture:
     def operation_panel(self):
         pass
 
+    def frame_to_arr(self):
+        buffer = self.texture.read()
+        img_arr = np.frombuffer(buffer, dtype=np.uint8).reshape(
+            (self.height, self.width, self.channel))
+        return img_arr
+
+    def frame_to_file(self, path):
+        from PIL import Image
+        img_arr = self.frame_to_arr()
+        image = Image.fromarray(img_arr)
+        image.save(path)
+
 
 class CameraFBT(FrameBufferTexture):
     """自由摄像机 模板"""

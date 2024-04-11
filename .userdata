@@ -1,4 +1,15 @@
 {
-    "last_nav_idx": -1,
-    "layout_level3_left_width": 400
+    "layout_level3_left_width": 400,
+    "recent_project_names": [
+        "testProject",
+        "Template Project",
+        "Google Earth Template",
+        "DiaoYuTai1"
+    ],
+    "recent_project_paths": [
+        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/testProject",
+        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/TemplateProject",
+        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/GoogleEarthTemplate",
+        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/DiaoYuTai1"
+    ]
 }

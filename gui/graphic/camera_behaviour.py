@@ -209,13 +209,16 @@ class OrbitGaussianCameraBehaviour(OrbitCameraBehaviour):
         self.camera.projection.update(near=0.1, far=1000)
         self.camera.update()  # 初始化各类矩阵和变量
 
+        self._hover_mouse_release_event_func = None
+
     def _mouse_drag_event(self, x: int, y: int, dx, dy):
         super()._mouse_drag_event(x, y, dx, dy)
         self.camera.update()
 
     def _hover_mouse_scroll_event_smooth(self, x_offset: float, y_offset: float):
         super()._hover_mouse_scroll_event_smooth(x_offset, y_offset)
-        self.camera.update()
+        if y_offset != 0:
+            self.camera.update()
 
     def update_size(self, width, height):
         super().update_size(width, height)  # 更新projection
@@ -227,4 +230,4 @@ class OrbitGaussianCameraBehaviour(OrbitCameraBehaviour):
         c.bold_text('[OrbitGaussianCameraBehaviour]')
         imgui.same_line()
         imgui.text(
-            f'P: {self.camera.P} r: {str(self.camera.A[0])} u: {str(self.camera.A[1])} f: {str(self.camera.A[2])}')
+            f'P: {self.camera.P} r: {str(self.camera._r)} u: {str(self.camera._u)} f: {str(self.camera._f)}')

@@ -14,34 +14,8 @@ from scripts.project_manager import ProjectManager
 class TopBarWindow(BaseWindow):
     LAYOUT_NAME = 'level1_top'
 
-    # 项目名列表
-    project_names = [
-        "SkyNet AI Assistant",
-        "Quantum Fusion Reactor",
-        "Hyperloop Transport System",
-        "Virtual Reality Oasis",
-        "NanoBot Medical Scanner",
-        "SpaceX Mars Colonization Project",
-        "SmartCity IoT Platform",
-        "CleanEnergy Solar Farm Initiative",
-        "AugmentedReality Enhanced Education",
-        "HealthTech Wearable Devices"
-    ]
-
-    # 项目地址列表（本地文件夹路径）
-    project_paths = [
-        "/path/to/SkyNet_AI_Assistant",
-        "/path/to/Quantum_Fusion_Reactor",
-        "/path/to/Hyperloop_Transport_System",
-        "/path/to/Virtual_Reality_Oasis",
-        "/path/to/NanoBot_Medical_Scanner",
-        "/path/to/SpaceX_Mars_Colonization_Project",
-        "/path/to/SmartCity_IoT_Platform",
-        "/path/to/CleanEnergy_Solar_Farm_Initiative",
-        "/path/to/AugmentedReality_Enhanced_Education",
-        "/path/to/HealthTech_Wearable_Devices"
-    ]
-
+    recent_project_names = []
+    recent_project_paths = []
     @classmethod
     def w_init(cls):
         super().w_init()
@@ -109,6 +83,9 @@ class TopBarWindow(BaseWindow):
         # project button
         if c.icon_text_button(button_icon, button_content):
             imgui.open_popup('project_button_popup')
+            from gui import global_userinfo
+            cls.recent_project_names = global_userinfo.get_user_data("recent_project_names")[::-1]
+            cls.recent_project_paths = global_userinfo.get_user_data("recent_project_paths")[::-1]
         c.easy_tooltip(button_tooltip)
         if imgui.is_popup_open('project_button_popup'):
             imgui.set_next_window_position(*popup_cursor_pos)
@@ -121,12 +98,13 @@ class TopBarWindow(BaseWindow):
                 imgui.text(ProjectManager.curr_project.project_root)
                 # save project button
                 if c.icon_text_button('save-line', 'Save Project', width=imgui.get_content_region_available_width()):
-                    ProjectManager.curr_project.p_save()
+                    ProjectManager.save_curr_project()
                     imgui.close_current_popup()
             # open project button
             if c.icon_text_button('folder-open-line', 'Open Project', width=imgui.get_content_region_available_width()):
                 folder_path = io_utils.open_folder_dialog()
                 if folder_path:
+                    ProjectManager.save_curr_project()
                     project = ProjectManager.open_folder_as_project(folder_path)
                     if project is None:  # project not created yet
                         _confirm_create_project_path = folder_path
@@ -142,13 +120,15 @@ class TopBarWindow(BaseWindow):
             imgui.separator()
             # recent projects
             imgui.text('Recent Projects:')
-            for i in range(len(cls.project_names)):
-                project_name = cls.project_names[i]
-                project_path = cls.project_paths[i]
+            for i in range(len(cls.recent_project_names)):
+                project_name = cls.recent_project_names[i]
+                project_path = cls.recent_project_paths[i]
                 character = project_name[0].upper()
                 texture_module.generate_character_icon(character)
                 if c.icon_double_text_button(character, project_name, project_path,
                                              width=imgui.get_content_region_available_width()):
+                    ProjectManager.save_curr_project()
+                    ProjectManager.open_folder_as_project(cls.recent_project_paths[i])
                     imgui.close_current_popup()
             imgui.pop_style_color()
             imgui.pop_style_var()

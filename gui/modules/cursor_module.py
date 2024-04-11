@@ -9,6 +9,7 @@ class CursorModule(BaseModule):
 
     @classmethod
     def m_init(cls):
+        super().m_init()
         windows = pyglet.app.windows
         for window in windows:
             cls.window = window

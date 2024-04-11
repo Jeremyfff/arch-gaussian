@@ -4,5 +4,6 @@ from gui.modules.event_module import EventModule
 from gui.modules.drawing_module import DrawingModule
 from gui.modules.cursor_module import CursorModule
 from gui.modules.shadow_module import ShadowModule
+from gui.modules.program_module import ProgramModule
 
-ALL_MODULES = [StyleModule, LayoutModule, EventModule, DrawingModule, CursorModule, ShadowModule]
+ALL_MODULES = [StyleModule, LayoutModule, EventModule, DrawingModule, CursorModule, ShadowModule, ProgramModule]

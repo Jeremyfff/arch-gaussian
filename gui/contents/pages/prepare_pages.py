@@ -216,13 +216,13 @@ class PrepareColmapPage(BasePage):
 
     @classmethod
     def p_init(cls):
-        from gui.global_userinfo import user_settings
+        from gui import global_userinfo
         cls.mColmapArgs = {
             'no_gpu': False,
             'skip_matching': False,
             'source_path': ProjectManager.curr_project.get_info('data_root'),
             'camera': "OPENCV",
-            'colmap_executable': user_settings['colmap_executable'],
+            'colmap_executable': global_userinfo.get_user_settings('colmap_executable'),
             'resize': False,
             'magick_executable': ""
         }

@@ -51,4 +51,6 @@ class CellModule:
             imgui.text('no cells')
             return
         for cell in self.displaying_cells:
+            imgui.push_id(cell.name)
             cell.show()
+            imgui.pop_id()

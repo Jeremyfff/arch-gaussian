@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Optional, Union
 
 import imgui
@@ -53,7 +54,9 @@ class ViewerContent(BaseContent):
         if cls._update_graphic_size and cls.mRenderer is not None:
             cls.mRenderer.update_size(*cls.get_content_size())
             cls._update_graphic_size = False
-        org_cursor_pos = imgui.get_cursor_pos()
+        cp = imgui.get_cursor_pos()
+        wp = imgui.get_window_position()
+        g.mImagePos = (wp[0] + cp[0], wp[1] + cp[1])
         # display image
         if cls.mRenderer is not None:
             imgui.image(cls.mRenderer.texture_id, cls.mRenderer.width, cls.mRenderer.height)
@@ -64,7 +67,7 @@ class ViewerContent(BaseContent):
             imgui.set_cursor_pos_y(imgui.get_window_height() / 2 - text_height / 2)
             imgui.text(text)
         # show overlay content
-        imgui.set_cursor_pos(org_cursor_pos)
+        imgui.set_cursor_pos(cp)
         cls.show_overlay_content()
 
     @classmethod
@@ -78,6 +81,14 @@ class ViewerContent(BaseContent):
         """on content hide (this is run under imgui context)"""
         super().c_on_hide()
         cls._unregister_events()
+
+    @classmethod
+    def has_gaussian_renderer(cls):
+        if cls.mRenderer is None:
+            return False
+        if not isinstance(cls.mRenderer, GaussianRenderer):
+            return False
+        return True
 
     @classmethod
     def show_overlay_content(cls):
@@ -109,10 +120,43 @@ class ViewerContent(BaseContent):
             cls.mRenderer.show_debug_info()
 
     @classmethod
-    def operation_panel(cls):
+    def renderer_operation_panel(cls):
         if cls.mRenderer is None:
             return
         cls.mRenderer.operation_panel()
+
+    @classmethod
+    def geometry_collection_operation_panel(cls):
+        if cls.mRenderer is None:
+            return
+        # 支持普通的scene info renderer 和 gaussian renderer
+        cls.mRenderer.geometry_collection_operation_panel()
+
+    @classmethod
+    def debug_collection_operation_panel(cls):
+        if not cls.has_gaussian_renderer():
+            return
+        cls.mRenderer.debug_collection_operation_panel()
+
+    @classmethod
+    def gaussian_collection_operation_panel(cls):
+        if not cls.has_gaussian_renderer():
+            return
+        cls.mRenderer.gaussian_collection_operation_panel()
+
+    @classmethod
+    def use_camera(cls, camera):
+        if not cls.has_gaussian_renderer():
+            return
+        FoVy = camera.FoVy
+        image_width = camera.image_width
+        image_height = camera.image_height
+        aspect_ratio = image_width / image_height
+        fov = math.degrees(FoVy)
+        if cls.mRenderer.width != image_width or cls.mRenderer.height != image_height:
+            cls.mRenderer.update_size(image_width, image_height)
+        cls.mRenderer.camera.projection.update(aspect_ratio=aspect_ratio, fov=fov)
+        cls.mRenderer.camera.update_use_TR(camera.T, camera.R)
 
     @classmethod
     def show_help_info(cls):
@@ -292,3 +336,11 @@ class ViewerContent(BaseContent):
             return
         cls.mRenderer.unregister_hovering_events()
         cls._is_graphic_renderer_in_hovering_mode = False
+
+    @classmethod
+    def on_project_changed(cls):
+        if cls.has_gaussian_renderer():
+            cls._initialize_scene_info_renderer()
+
+
+EventModule.register_project_change_callback(ViewerContent.on_project_changed)

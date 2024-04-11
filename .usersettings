@@ -1,4 +1,7 @@
 {
     "project_repository_folder": "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects",
-    "colmap_executable": "C:\\Program Files\\COLMAP-3.9.1-windows-cuda\\COLMAP.bat"
+    "colmap_executable": "C:\\Program Files\\COLMAP-3.9.1-windows-cuda\\COLMAP.bat",
+    "move_scroll_speed": 0.009999999776482582,
+    "scale_scroll_speed": 0.10000000149011612,
+    "rotate_scroll_speed": 1
 }

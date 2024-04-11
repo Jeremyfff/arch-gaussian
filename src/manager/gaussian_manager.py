@@ -3,9 +3,11 @@ import json
 import os
 from contextlib import contextmanager
 from functools import reduce
+from typing import Optional
 
 import numpy as np
 import torch
+from pyrr import Matrix44
 from torch import Tensor
 
 from scene import GaussianModel
@@ -34,14 +36,17 @@ class GaussianManager:
             args), op.extract(args), pp.extract(
             args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from
         self.pipe = pipe
+        self.source_ply_path = ''  # 追踪gaussian 源自哪个ply
         if custom_ply_path is not None:
             # 如果有custom ply path， 则使用自定义的路径创建gaussian
+            print("[Gaussian Manager] Creating gaussians from custom ply")
+            self.source_ply_path = custom_ply_path
             self.gaussians = create_gaussian_from_ply(args.sh_degree, custom_ply_path)
+
         elif args.loaded_iter:
             print("[Gaussian Manager] Creating gaussians from ply")
-            self.gaussians = create_gaussian_from_ply(args.sh_degree, os.path.join(args.model_path, "point_cloud",
-                                                                                   "iteration_" + str(args.loaded_iter),
-                                                                                   "point_cloud.ply"))
+            self.source_ply_path = os.path.join(args.model_path, "point_cloud", "iteration_" + str(args.loaded_iter), "point_cloud.ply")
+            self.gaussians = create_gaussian_from_ply(args.sh_degree, self.source_ply_path)
         else:
             print("[Gaussian Manager] Creating gaussians from scene info")
             self.gaussians = create_gaussian_from_scene_info(args.sh_degree, scene_info)
@@ -54,34 +59,54 @@ class GaussianManager:
             from gaussian_renderer import render
             self.render_module = render
         except Exception as e:
+            print(e)
             self.render_module = None
 
+    # region 缓存相关
     @contextmanager
     def virtual(self):
         # 进入代码块前执行的操作
         print("[Gaussian Manager] Entering the code block")
-        self.gaussians_backup = self.gaussians
-        self.gaussians = copy.deepcopy(self.gaussians)
-        self.bg_backup = self.bg
-        self.bg = copy.deepcopy(self.bg)
+        self.cache()
         try:
             # yield之前的代码相当于__enter__方法
             yield
         finally:
-            self.gaussians = self.gaussians_backup
-            del self.gaussians_backup
-            self.gaussians_backup = None
-            self.bg = self.bg_backup
-            del self.bg_backup
-            self.bg_backup = None
+            self.restore()
+
+    def cache(self):
+        self.gaussians_backup = self.gaussians
+        self.gaussians = copy.deepcopy(self.gaussians)
+        self.bg_backup = self.bg
+        self.bg = copy.deepcopy(self.bg)
+
+    def restore(self):
+        if self.gaussians_backup is None:
+            return
+        self.gaussians = self.gaussians_backup
+        del self.gaussians_backup
+        self.gaussians_backup = None
+        self.bg = self.bg_backup
+        del self.bg_backup
+        self.bg_backup = None
+
+    def has_cache(self):
+        return self.gaussians_backup is not None
 
     def apply(self):
         """
-        在virtual环境的，应用改变
+        应用改变
         """
         self.gaussians_backup = self.gaussians
         self.bg_backup = self.bg
 
+    def clear_cache(self):
+        self.gaussians_backup = None
+        self.bg_backup = None
+
+    # endregion
+
+    # region 渲染
     def render(self, camera, convert_to_pil=False, convert_to_rgba_arr=False, convert_to_rgb_arr=False):
         if self.render_module is None:
             return np.zeros((camera.image_height, camera.image_width, 4), dtype=np.uint8)
@@ -105,14 +130,15 @@ class GaussianManager:
         return image
 
     def visualize_in_o3d(self):
+        """已弃用， 在open3d中预览"""
         import open3d as o3d
         geometries = []
         point_cloud = o3d.geometry.PointCloud()
-        points = self.gaussian._xyz.detach().cpu().numpy().astype(np.float32)
+        points = self.gaussians._xyz.detach().cpu().numpy().astype(np.float32)
         point_cloud.points = o3d.utility.Vector3dVector(points)
 
         SH_C0 = 0.28209479177387814
-        rgb = self.gaussian._features_dc.detach().cpu().numpy()
+        rgb = self.gaussians._features_dc.detach().cpu().numpy()
         rgb = rgb.reshape((rgb.shape[0], 3))
         rgb = (0.5 + SH_C0 * rgb)
         rgb = np.clip(rgb, 0.0, 1.0).astype(np.float32)
@@ -133,6 +159,9 @@ class GaussianManager:
 
         o3d.visualization.draw_geometries(geometries)
 
+    # endregion
+
+    # region 创建与修改mask
     def zero_like_mask(self):
         return torch.zeros((self.gaussians.get_xyz.shape[0]), dtype=torch.bool, device='cuda')
 
@@ -158,7 +187,6 @@ class GaussianManager:
             mask = (xyz[:, 0] >= min[0]) & (xyz[:, 0] <= max[0]) & \
                    (xyz[:, 1] >= min[1]) & (xyz[:, 1] <= max[1]) & \
                    (xyz[:, 2] >= min[2]) & (xyz[:, 2] <= max[2])
-        self.cached_mask = mask
         return mask
 
     def bboxes_from_json(self, json_path, z_min, z_max):
@@ -232,12 +260,24 @@ class GaussianManager:
         if self.gaussians.denom.shape[0] == mask.shape[0]:
             self.gaussians.denom = self.gaussians.denom[mask]
 
+    # endregion
+
+    # region 高斯操作-颜色
     def set_color(self, color: float, mask=None):
         with torch.no_grad():
             if mask is None:
                 self.gaussians._features_dc[:] = GaussianManager.rgb2feature_dc(color)
             else:
                 self.gaussians._features_dc[mask] = GaussianManager.rgb2feature_dc(color)
+
+    def set_rgb(self, rgb_color, mask=None):
+        with torch.no_grad():
+            color = GaussianManager.rgb2feature_dc(rgb_color)
+            color = torch.tensor(color, device="cuda")
+            if mask is None:
+                self.gaussians._features_dc[:, 0, :] = color
+            else:
+                self.gaussians._features_dc[mask, 0, :] = color
 
     def set_alpha(self, alpha: float, mask=None):
         with torch.no_grad():
@@ -309,6 +349,9 @@ class GaussianManager:
             print(self.gaussians._xyz[mask].shape)
             self.gaussians._xyz[mask] = points
 
+    # endregion
+
+    # region 清空梯度
     @staticmethod
     def _clear_grad(param, mask):
         if param.grad is None:
@@ -323,11 +366,24 @@ class GaussianManager:
         self._clear_grad(self.gaussians._rotation, mask)
         self._clear_grad(self.gaussians._opacity, mask)
 
+    # endregion
+
+    # region 移动旋转
     def move(self, offset):
-        offset = torch.tensor(offset).cuda()
+        offset = torch.tensor(offset, dtype=torch.float32).cuda()
         with torch.no_grad():
             self.gaussians._xyz = self.gaussians._xyz + offset
 
+    def rotate(self, matrix: Matrix44):
+        matrix44 = torch.tensor(matrix, dtype=torch.float32).cuda()
+        matrix33 = torch.tensor(matrix.matrix33, dtype=torch.float32).cuda()
+        with torch.no_grad():
+            # self.gaussians._xyz = torch.matmul(self.gaussians._xyz, matrix33)
+            self.gaussians._rotation = torch.dot(self.gaussians._rotation, matrix44.t())
+            # self.gaussians._scaling = torch.matmul(self.gaussians._scaling, matrix33)
+
+    # endregion
+    # region static methods
     @staticmethod
     def rgb2feature_dc(data):
         return (data - 0.5) / 0.28209479177387814
@@ -344,3 +400,40 @@ class GaussianManager:
     def alpha2feature_opacity(a):
         assert a != 0 and a != 1, "a cannot be zero or one"
         return torch.log(a / (1 - a))
+
+    @staticmethod
+    def merge_gaussian_managers(gms: list["GaussianManager"]) -> Optional["GaussianManager"]:
+        if len(gms) == 0:
+            return None
+        if len(gms) == 1:
+            return gms[0]
+
+        with torch.no_grad():
+            final_gm = copy.deepcopy(gms[0])
+            final_gm.clear_cache()
+            final_xyz_list = []
+            final_features_dc_list = []
+            final_features_rest_list = []
+            final_scaling_list = []
+            final_rotation_list = []
+            final_opacity_list = []
+            final_max_radii2D_list = []
+            for i, gm in enumerate(gms):
+                gaussians = gm.gaussians
+                final_xyz_list.append(gaussians._xyz.detach())
+                final_features_dc_list.append(gaussians._features_dc.detach())
+                final_features_rest_list.append(gaussians._features_rest.detach())
+                final_scaling_list.append(gaussians._scaling.detach())
+                final_rotation_list.append(gaussians._rotation.detach())
+                final_opacity_list.append(gaussians._opacity.detach())
+                final_max_radii2D_list.append(gaussians.max_radii2D.detach())
+
+            final_gm.gaussians._xyz = torch.cat(final_xyz_list, dim=0)
+            final_gm.gaussians._features_dc = torch.cat(final_features_dc_list, dim=0)
+            final_gm.gaussians._features_rest = torch.cat(final_features_rest_list, dim=0)
+            final_gm.gaussians._scaling = torch.cat(final_scaling_list, dim=0)
+            final_gm.gaussians._rotation = torch.cat(final_rotation_list, dim=0)
+            final_gm.gaussians._opacity = torch.cat(final_opacity_list, dim=0)
+            final_gm.gaussians.max_radii2D = torch.cat(final_max_radii2D_list, dim=0)
+            return final_gm
+    # endregion

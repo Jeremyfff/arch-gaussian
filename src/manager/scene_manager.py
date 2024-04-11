@@ -69,8 +69,10 @@ class SceneManager:
         @Jeremy
         Calculate the average ground upward vector
         by calculating several pairs of camera axes and averaging them.
+
         Get cached ground up vector if __cached_cam_axis is not None,
         else, calculate a new ground up vector
+
         """
         if self.__cached_cam_axis is None:
             self._get_cam_pos_and_axis()  # this step will add cam_axis to cache

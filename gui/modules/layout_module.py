@@ -123,6 +123,7 @@ class LayoutModule(BaseModule):
 
     @classmethod
     def m_init(cls):
+        super().m_init()
         from gui.modules import ShadowModule
         cls.shadow_module = ShadowModule
         style = g.mImguiStyle
