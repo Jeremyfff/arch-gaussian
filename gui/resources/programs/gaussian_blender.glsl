@@ -30,11 +30,11 @@ void main() {
         // geometry is behind gaussian
         fragColor = gaussian_color;
     }else{
-        // geometry if front of gaussian
+        // geometry is front of gaussian
         vec3 geo_rgb = geometry_color.xyz;
         vec3 gs_rgb = gaussian_color.xyz;
         vec3 mixed_color = geometry_color.a * geo_rgb + (1 - geometry_color.a) * gs_rgb;
-        fragColor = vec4(mixed_color, 1.0);
+        fragColor = vec4(mixed_color, 1);
     }
 }
 #endif

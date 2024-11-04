@@ -160,7 +160,7 @@ def init_output_folder(args, scene_info):
             json.dump(json_cams, file)
 
 
-def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socket=None, post_socket=None):
+def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socket=None, post_socket=None, cmd_dict={}):
     from src.utils import progress_utils as pu
     print("🚀Optimizing " + config.scene_name)
     lp, op, pp = parse_args(args)
@@ -308,3 +308,14 @@ def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socke
             if iteration in checkpoint_iterations:
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
                 torch.save((gaussians.capture(), iteration), args.model_path + "/chkpnt" + str(iteration) + ".pth")
+
+            # Stop conditions
+            if 'force_stop' in cmd_dict and cmd_dict['force_stop'] == 1:
+                break
+
+            if 'stop_and_save' in cmd_dict and cmd_dict['stop_and_save'] == 1:
+                print("\n[ITER {}] Saving Gaussians".format(iteration))
+                # scene.save(iteration)
+                point_cloud_path = os.path.join(args.model_path, "point_cloud/iteration_{}".format(iteration))
+                gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
+                break

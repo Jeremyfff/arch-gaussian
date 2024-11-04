@@ -101,6 +101,12 @@ class FullPage(BasePage):
         imgui.text('SceneManager loaded')
         scene_info_train_cameras = cls._scene_manager.scene_info.train_cameras
         imgui.text(f'train_cameras num in scene info: [{len(scene_info_train_cameras)}]')
+        if imgui.button("View Output Msgs"):
+            imgui.open_popup("scene_manager_load_and_fix_scene_info_output")
+        if imgui.begin_popup("scene_manager_load_and_fix_scene_info_output"):
+            for line in cls._fix_scene_output_msg:
+                imgui.text(line)
+            imgui.end_popup()
 
     _imgui_curr_selected_camera_idx = 0
 
@@ -170,12 +176,21 @@ class FullPage(BasePage):
         if cls._is_training_gaussian:
             StyleModule.push_disabled_button_color()
             imgui.button('TRAIN(RUNNING...)')
+
         else:
             StyleModule.push_highlighted_button_color()
             if imgui.button('TRAIN'):
                 threading.Thread(target=cls._train_gaussian).start()
         StyleModule.pop_button_color()
+
         imgui.progress_bar(cls._train_progress, (imgui.get_content_region_available_width(), 10 * g.GLOBAL_SCALE))
+
+        if cls._is_training_gaussian:
+            if imgui.button("Force Stop"):
+                cls._cmd_dict['force_stop'] = 1
+            imgui.same_line()
+            if imgui.button("Stop and Save"):
+                cls._cmd_dict['stop_and_save'] = 1
 
     _curr_selected_iteration_folder_idx = 0
 
@@ -282,7 +297,8 @@ class FullPage(BasePage):
         # region create mask button
         if cls._mask_target_gaussian is None or cls._mask_target_geometry_as_mask is None:
             StyleModule.push_disabled_button_color()
-            c.icon_text_button("file-add-fill", "Create Mask", imgui.get_content_region_available_width(), imgui.get_frame_height())
+            c.icon_text_button("file-add-fill", "Create Mask", imgui.get_content_region_available_width(),
+                               imgui.get_frame_height())
             StyleModule.pop_button_color()
         else:
             if c.icon_text_button("file-add-fill", "Create Mask"):
@@ -433,17 +449,20 @@ class FullPage(BasePage):
         if cls._mask_boundary_debug_bbox is None:
             cls.create_mask_boundary_debug_bbox()
         if cls._imgui_preview_boundary_bbox:
-            cls.ViewerContentClass.mRenderer.debug_collection.draw_bbox(cls._mask_boundary_debug_bbox, skip_examine=True)
+            cls.ViewerContentClass.mRenderer.debug_collection.draw_bbox(cls._mask_boundary_debug_bbox,
+                                                                        skip_examine=True)
         if cls._mask_boundary_warning_msg != '':
             c.warning_text(cls._mask_boundary_warning_msg)
 
         if cls._mask_boundary_debug_bbox is not None:
             bbox: "WiredBoundingBox" = cls._mask_boundary_debug_bbox
-            changed, bound_min = imgui.drag_float3("bound_min", *bbox.bound_min, global_userinfo.get_user_settings('move_scroll_speed'))
+            changed, bound_min = imgui.drag_float3("bound_min", *bbox.bound_min,
+                                                   global_userinfo.get_user_settings('move_scroll_speed'))
             if changed:
                 cls._mask_boundary_debug_bbox.set_bound_min(bound_min)
                 pm.curr_project.set_project_data(pd.MASK_BOUNDARY_DEBUG_BBOX_MIN, bound_min)
-            changed, bound_max = imgui.drag_float3("bound_max", *bbox.bound_max, global_userinfo.get_user_settings('scale_scroll_speed'))
+            changed, bound_max = imgui.drag_float3("bound_max", *bbox.bound_max,
+                                                   global_userinfo.get_user_settings('scale_scroll_speed'))
             if changed:
                 cls._mask_boundary_debug_bbox.set_bound_max(bound_max)
                 pm.curr_project.set_project_data(pd.MASK_BOUNDARY_DEBUG_BBOX_MAX, bound_max)
@@ -457,7 +476,8 @@ class FullPage(BasePage):
             cls.ViewerContentClass.mRenderer.debug_collection.draw_cube(cls._mask_ground_debug_cube, skip_examine=True)
         if cls._mask_ground_debug_cube is not None:
             cube: "SimpleCube" = cls._mask_ground_debug_cube
-            changed, cls._ground_height = imgui.drag_float("ground height", cls._ground_height, global_userinfo.get_user_settings('move_scroll_speed'))
+            changed, cls._ground_height = imgui.drag_float("ground height", cls._ground_height,
+                                                           global_userinfo.get_user_settings('move_scroll_speed'))
             if changed:
                 cube.translation = (0, 0, cls._ground_height)
                 pm.curr_project.set_project_data(pd.GROUND_HEIGHT, cls._ground_height)
@@ -482,7 +502,8 @@ class FullPage(BasePage):
 
         else:
             StyleModule.push_highlighted_button_color()
-            if imgui.button("GENERATE DATASET", imgui.get_content_region_available_width(), imgui.get_frame_height_with_spacing()):
+            if imgui.button("GENERATE DATASET", imgui.get_content_region_available_width(),
+                            imgui.get_frame_height_with_spacing()):
                 cls._imgui_create_dataset_coroutine = cls.create_dataset()
                 cls._imgui_is_creating_dataset = True
             StyleModule.pop_button_color()
@@ -691,6 +712,10 @@ class FullPage(BasePage):
     _is_training_gaussian = False
     _train_gaussian_output_msg = []
     _train_progress = 0
+    _default_cmd_dict = {"force_stop": 0,
+                         "stop_and_save": 0
+                         }
+    _cmd_dict = {}
 
     @classmethod
     def _train_gaussian(cls):
@@ -699,12 +724,13 @@ class FullPage(BasePage):
         assert cls._cm is not None
         assert cls._scene_manager is not None
         pu.create_contex('train', cls._update_train_progress)
+        cls._cmd_dict = cls._default_cmd_dict.copy()
         cls._is_training_gaussian = True
         with io_utils.OutputCapture(cls._train_gaussian_output_msg):
             from manager.train_manager import train, init_output_folder
             init_output_folder(cls._args, cls._scene_manager.scene_info)
         train(cls._args, cls._scene_manager.scene_info, cls._gm.gaussians, cls._cm.train_cameras,
-              post_socket=cls._post_socket)
+              post_socket=cls._post_socket, cmd_dict=cls._cmd_dict)
         cls._is_training_gaussian = False
 
     @classmethod
@@ -1013,7 +1039,8 @@ class FullPage(BasePage):
         mRenderer.render_debug_geometries = cls._parameters_before_create_dataset["raw_enable_render_debug_geometries"]
         mRenderer.render_geometries = cls._parameters_before_create_dataset["raw_enable_render_geometries"]
         mRenderer.render_gaussians = cls._parameters_before_create_dataset["raw_enable_render_gaussians"]
-        mRenderer.update_size(cls._parameters_before_create_dataset["image_width"], cls._parameters_before_create_dataset["image_height"])
+        mRenderer.update_size(cls._parameters_before_create_dataset["image_width"],
+                              cls._parameters_before_create_dataset["image_height"])
         mRenderer.debug_render_time_gap = cls._parameters_before_create_dataset["debug_render_time_gap"]
 
     @classmethod

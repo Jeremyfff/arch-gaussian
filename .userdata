@@ -1,15 +1,9 @@
 {
     "layout_level3_left_width": 400,
     "recent_project_names": [
-        "testProject",
-        "Template Project",
-        "Google Earth Template",
-        "DiaoYuTai1"
+        "Google Earth Template"
     ],
     "recent_project_paths": [
-        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/testProject",
-        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/TemplateProject",
-        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/GoogleEarthTemplate",
-        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/DiaoYuTai1"
+        "G:/@M.Arch/Master/arch_gaussian_projects/GoogleEarthTemplate"
     ]
 }

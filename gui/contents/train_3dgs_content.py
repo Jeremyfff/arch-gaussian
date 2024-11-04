@@ -31,13 +31,13 @@ class Train3DGSContent(BaseContent):
         if ProjectManager.curr_project is None:
             imgui.text('Please Open A Project First')
             return
+
         imgui.push_style_var(imgui.STYLE_FRAME_PADDING,
                              (g.mImguiStyle.frame_padding[0] * 1.5, g.mImguiStyle.frame_padding[1] * 1.5))
         imgui.push_style_var(imgui.STYLE_ITEM_SPACING,
                              (g.mImguiStyle.item_spacing[0] * 1.5, g.mImguiStyle.item_spacing[1] * 1.5))
         cls.page_group.show_level_guide()
         cls.page_group.show()
-
         imgui.pop_style_var(2)
 
     @classmethod

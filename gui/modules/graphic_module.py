@@ -51,6 +51,7 @@ class FrameBufferTexture:
         g.mWindowEvent.imgui.register_texture(self.fbo.color_attachments[0])
         g.mWindowEvent.imgui.register_texture(self.fbo.depth_attachment)
 
+
     @property
     def texture(self):
         return self.fbo.color_attachments[0]

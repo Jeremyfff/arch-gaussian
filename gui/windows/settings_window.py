@@ -2,7 +2,7 @@ import imgui
 
 from gui import components as c
 from gui import global_var as g
-from gui.contents import UserSettingsContent, ProjectSettingsContent
+from gui.contents import UserSettingsContent, ProjectSettingsContent, ImguiSettingsContent
 from gui.windows.base_window import PopupWindow
 
 
@@ -10,8 +10,8 @@ class SettingsWindow(PopupWindow):
     _name = 'Settings'
 
     _curr_nav_idx = 0
-    _contents = [UserSettingsContent, ProjectSettingsContent]
-    _content_names_list = ['User Settings', 'Project Settings']
+    _contents = [UserSettingsContent, ProjectSettingsContent, ImguiSettingsContent]
+    _content_names_list = ['User Settings', 'Project Settings', 'Imgui Settings']
 
     @classmethod
     def w_init(cls):

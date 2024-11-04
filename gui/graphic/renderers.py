@@ -223,7 +223,7 @@ class GaussianRenderer(CameraFBT):
         self._last_render_time = curr_time
 
     def render(self, **kwargs):
-        self.ctx.enable_only(moderngl.CULL_FACE | moderngl.DEPTH_TEST | moderngl.PROGRAM_POINT_SIZE)
+        self.ctx.enable(moderngl.CULL_FACE | moderngl.DEPTH_TEST | moderngl.PROGRAM_POINT_SIZE)
         self.ctx.point_size = self.point_size
         # ============================================================================
         # region for debug purpose
@@ -284,10 +284,11 @@ class GaussianRenderer(CameraFBT):
             geo_depth_data = self.fbo.read(
                 viewport=(image_space_pos[0], image_space_pos[1], 1, 1), components=1, attachment=-1, dtype='f4')
             geo_depth = struct.unpack('f', geo_depth_data)[0]
+            print(f"geo_depth = {geo_depth}")
             gaussian_depth_data = self.gaussianFBT.fbo.read(
                 viewport=(image_space_pos[0], image_space_pos[1], 1, 1), components=1, attachment=-1, dtype='f4')
             gaussian_depth = struct.unpack('f', gaussian_depth_data)[0]
-
+            print(f"gaussian_depth = {gaussian_depth}")
             geo_linear_depth = transform_utils.depth_attachment_value_to_linear_depth(
                 geo_depth, self.camera.projection.far, self.camera.projection.near
             )
@@ -309,12 +310,12 @@ class GaussianRenderer(CameraFBT):
                 geo_linear_depth * 0.2
 
             ])
-            print(gl_position)
+            # print(gl_position)
             p = np.linalg.inv(m_proj) @ gl_position
             test_point = np.linalg.inv(m_view) @ p
             test_point[1] *= -1
             test_point[2] *= -1
-            print(test_point)
+            # print(test_point)
             self.debug_last_click_pos = test_point[:3]
 
     @property

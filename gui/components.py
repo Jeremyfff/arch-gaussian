@@ -55,11 +55,13 @@ def warning_text(content):
     imgui.text(content)
     imgui.pop_style_color()
 
+
 def highlight_text(content):
     color = color_utils.align_alpha(StyleModule.COLOR_PRIMARY, g.mImguiStyle.colors[imgui.COLOR_TEXT])
     imgui.push_style_color(imgui.COLOR_TEXT, *color)
     imgui.text(content)
     imgui.pop_style_color()
+
 
 def icon_image(icon_name, width=None, height=None, uv0=(0, 0), uv1=(1, 1), tint_color=(1, 1, 1, 1),
                border_color=(0, 0, 0, 0), padding=False):
@@ -320,8 +322,8 @@ def get_arg_types(args: dict):
 
 
 def arg_editor(args: dict, arg_type_dict: dict, disabled_keys: set = None, hidden_keys: set = None,
-               custom_lines: dict[any:Callable] = None):
-    width = imgui.get_content_region_available_width() / 2
+               custom_lines: dict[any:Callable] = None, width_percent=0.5):
+    width = imgui.get_content_region_available_width() * width_percent
     style: imgui.core.GuiStyle = imgui.get_style()
 
     if disabled_keys is None:
