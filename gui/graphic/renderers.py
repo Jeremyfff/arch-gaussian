@@ -16,6 +16,7 @@ from gui.modules.graphic_module import CameraFBT, GaussianBlenderFBT, FrameBuffe
 from gui.utils import transform_utils
 
 
+# region demo
 class CubeSimple(CameraFBT):
 
     def __init__(self, name, width, height, channel=4, camera_type='orbit'):
@@ -57,6 +58,8 @@ class CubeSimpleInstanced(CameraFBT):
     def operation_panel(self):
         super().operation_panel()
 
+
+# endregion
 
 def depth_texture_to_image_rgba(depth_texture):
     width = depth_texture.width

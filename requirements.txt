@@ -18,5 +18,6 @@ dearpygui
 flask
 comtypes
 pyperclip
-imnodeeditor
 datasets
+imgui[full]
+moderngl-window

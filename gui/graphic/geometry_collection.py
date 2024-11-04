@@ -316,6 +316,15 @@ class MyCustomGeometryCollection(GeometryCollection):
                                        np.array([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)])))
             imgui.end_popup()
         # endregion =======================================================================
+        # region other buttons
+        imgui.same_line()
+        if c.icon_text_button('file-add-fill', 'More...', uid="MCGCOP_Add_Geo"):
+            imgui.open_popup("MCGCOP_more_popup")
+        if imgui.begin_popup("MCGCOP_more_popup"):
+            imgui.checkbox("test check box", True)
+            imgui.end_popup()
+
+        # endregion
 
         # region GEO LIST ===========================================================
         # GUI -----------------------------------------------------------------------------

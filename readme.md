@@ -18,6 +18,8 @@ git clone http://git.krangingvalve.xyz/jeremyfff/arch_gaussian.git --recursive /
 cd arch_gaussian
 
 //安装依赖项
+首先安装cuda版本的pytorch
+
 pip install -r requirements.txt  
 pip install src/submodules/diff-gaussian-rasterization  
 pip install src/submodules/simple-knn  
