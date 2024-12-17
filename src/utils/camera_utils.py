@@ -8,15 +8,14 @@
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
+import numpy as np
+import torch
+from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
 
 from scene.cameras import Camera
-import numpy as np
 from utils.general_utils import PILtoTorch
 from utils.graphics_utils import fov2focal
-import numpy as np
-from scipy.spatial.transform import Rotation as R
-import torch
 
 WARNED = False
 
@@ -59,12 +58,12 @@ def loadCam(args, id, cam_info, resolution_scale):
 
 
 def cameraList_from_camInfos(cam_infos, resolution_scale, args):
-    from src.utils import progress_utils as pu
-    pu.new_progress(len(cam_infos))
+    from gui.utils import progress_utils as pu
+    pu.p_new_progress("load_camera", total=len(cam_infos))
     camera_list = []
     for id, c in tqdm(enumerate(cam_infos)):
         camera_list.append(loadCam(args, id, c, resolution_scale))
-        pu.update(1)
+        pu.p_update("load_camera", 1)
     return camera_list
 
 

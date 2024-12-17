@@ -15,7 +15,7 @@ class NodeEditorWindow(BaseWindow):
         super().w_update()
 
     @classmethod
-    def w_show(cls):
+    def w_show(cls, **kwargs):
         super().w_show()
         # begin window
         flags = imgui.WINDOW_NO_SCROLLBAR | imgui.WINDOW_NO_SCROLL_WITH_MOUSE

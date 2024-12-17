@@ -1,0 +1,31 @@
+Language Settings;语言设置(Language Settings)
+Folder Settings;文件夹设置
+Scroll Settings;滚动设置
+3D View Settings;3D视图设置
+Advanced Settings;高级设置
+Select Language;选择语言
+Project Repository Folder;项目仓库文件夹
+Colmap Executable;Colmap可执行文件路径
+Invalid Colmap Executable Path;非法的Colmap可执行文件路径
+Auto Search Colmap Executable;自动搜索Colmap可执行文件路径
+Move Scroll Speed;移动物体速度
+Scale Scroll Speed;缩放物体速度
+Rotate Scroll Speed;旋转物体速度
+Need Restart;需要重启
+Grid Fading Dist;坐标格网消失距离
+Grid Z Offset;坐标格网Z轴偏移
+Sets the gradient disappearance distance of the 3D view grid. Beyond this distance, the coordinate grid will not be visible.;设置三维视图格网的渐变消失距离。超过该距离，坐标格网将不可见。
+Sets the z-offset distance of the grid. The purpose of this option is to allow this option to be kept very small.;设置格网的z轴偏移距离。该选项的目的是允许请将该选项保持在一个很小的数值。
+Revert to default(Need restart);重置用户设置（需要重启）
+Clear all user data(Need restart);清除所有用户数据（需要重启）
+This option will reset all user settings;这一选项会重置所有用户设置
+This option will delete all user data;这一选项会删除所有的用户数据
+Global Scale;全局缩放
+Full Screen Blur Settings;全屏模糊设置
+Down Sample;降采样
+Blur Radius;模糊半径
+The best combination is: down sample * 16 = blur radius.;最佳组合为: 降采样 * 16 = 模糊半径
+Background Theme Settings;背景主题设置
+
+English;English
+Simplified Chinese;简体中文

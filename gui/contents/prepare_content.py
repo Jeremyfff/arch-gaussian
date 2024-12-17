@@ -1,6 +1,6 @@
 import imgui
 
-from gui import global_var as g
+from gui.global_app_state import g
 from gui.contents import pages
 from gui.contents.base_content import BaseContent
 from gui.modules.animation_module import AnimatedPageGroup

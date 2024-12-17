@@ -1,7 +1,14 @@
 {
-    "project_repository_folder": "G:/@M.Arch/Master/arch_gaussian_projects",
-    "colmap_executable": "C:\\Program Files\\colmap-x64-windows-cuda\\COLMAP.bat",
+    "language": 0,
+    "project_repository_folder": "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects",
+    "colmap_executable": "C:\\Program Files\\COLMAP\\COLMAP.bat",
     "move_scroll_speed": 0.10000000149011612,
     "scale_scroll_speed": 0.10000000149011612,
-    "rotate_scroll_speed": 1
+    "rotate_scroll_speed": 1.0,
+    "grid_fading_distance": 18.5,
+    "grid_z_offset": 0.0020000000949949026,
+    "global_scale": 1.25,
+    "full_screen_blur_fbt_down_sampling_factor": 8,
+    "full_screen_blur_radius": 128,
+    "bg_style": 1
 }

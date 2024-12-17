@@ -1,6 +1,6 @@
 import imgui
 
-from gui import components as c
+from gui.components import c
 from gui.contents.base_content import BaseContent
 
 

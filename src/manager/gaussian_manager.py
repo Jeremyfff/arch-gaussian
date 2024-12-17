@@ -29,7 +29,15 @@ def create_gaussian_from_scene_info(sh_degree, scene_info):
 
 
 class GaussianManager:
-    def __init__(self, args, scene_info, custom_ply_path=None):
+    def __init__(self, args,
+                 scene_info,
+                 custom_ply_path=None):
+        """
+
+        :param args:
+        :param scene_info:
+        :param custom_ply_path:
+        """
         self.args = args
         lp, op, pp = parse_args(args)
         dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from = lp.extract(
@@ -55,12 +63,11 @@ class GaussianManager:
         self.bg_backup = None
         self.gaussians_backup = None
 
-        try:
-            from gaussian_renderer import render
-            self.render_module = render
-        except Exception as e:
-            print(e)
-            self.render_module = None
+        # 加载渲染后端
+        from gaussian_renderer.default_renderer import render
+        self._render_function = render  # default renderer
+        from gaussian_renderer.fork_renderer import render
+        self._render_function_fork = render  # for fast rendering
 
     # region 缓存相关
     @contextmanager
@@ -107,14 +114,17 @@ class GaussianManager:
     # endregion
 
     # region 渲染
-    def render(self, camera, convert_to_pil=False, convert_to_rgba_arr=False, convert_to_rgb_arr=False):
-        if self.render_module is None:
-            return np.zeros((camera.image_height, camera.image_width, 4), dtype=np.uint8)
+    def render(self,
+               camera,
+               convert_to_pil=False,
+               convert_to_rgba_arr=False,
+               convert_to_rgb_arr=False,
+               ):
+        """default render for gaussian splatting training"""
         with torch.no_grad():
-            render_pkg = self.render_module(camera, self.gaussians, self.pipe, self.bg)
-            image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg[
-                "viewspace_points"], \
-                render_pkg["visibility_filter"], render_pkg["radii"]
+            render_pkg = self._render_function(camera, self.gaussians, self.pipe, self.bg)
+            image = render_pkg["render"]
+
             if convert_to_pil:
                 image = get_pil_image(image)
             elif convert_to_rgba_arr:
@@ -127,6 +137,17 @@ class GaussianManager:
                 image_rgb = image.clamp(0.0, 1.0).cpu().numpy().transpose((1, 2, 0))
                 image_rgb = (image_rgb * 255).astype(np.uint8)
                 image = image_rgb
+        return image
+
+    def render_fork(self, camera, opaque_depth) -> torch.Tensor:
+        """custom render function for fast rendering"""
+        with torch.no_grad():
+            image = self._render_function_fork(
+                viewpoint_camera=camera,
+                pc=self.gaussians,
+                bg_color=self.bg,
+                opaque_depth=opaque_depth
+            )
         return image
 
     def visualize_in_o3d(self):

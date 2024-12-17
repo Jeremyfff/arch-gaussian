@@ -21,3 +21,15 @@ pyperclip
 datasets
 imgui[full]
 moderngl-window
+deprecated
+trimesh
+objloader
+pytz
+pvlib
+imnodeeditor
+yaml
+pyyaml
+blobfile
+numba
+matplotlib
+pycuda

@@ -13,28 +13,23 @@ void main() {
 
 #elif defined FRAGMENT_SHADER
 
+vec4 blend(vec4 bgColor, vec4 fgColor){
+    vec4 c = mix(bgColor, fgColor, fgColor.a);
+    float a = bgColor.a + fgColor.a - bgColor.a * fgColor.a;
+    return vec4(c.rgb, a);
+}
+
+
 out vec4 fragColor;
-uniform sampler2D gaussian_color_texture;// vec3
-uniform sampler2D gaussian_depth_texture;// float
+
 uniform sampler2D geometry_color_texture;// vec4
-uniform sampler2D geometry_depth_texture;// float
+uniform sampler2D gaussian_color_texture;// vec4
+
 in vec2 uv0;
 
 void main() {
-    vec4 gaussian_color = texture(gaussian_color_texture, uv0);
-    float gaussian_depth = texture(gaussian_depth_texture, uv0).x;
     vec4 geometry_color = texture(geometry_color_texture, uv0);
-    float geometry_depth = texture(geometry_depth_texture, uv0).x;
-
-    if (gaussian_depth < geometry_depth){
-        // geometry is behind gaussian
-        fragColor = gaussian_color;
-    }else{
-        // geometry is front of gaussian
-        vec3 geo_rgb = geometry_color.xyz;
-        vec3 gs_rgb = gaussian_color.xyz;
-        vec3 mixed_color = geometry_color.a * geo_rgb + (1 - geometry_color.a) * gs_rgb;
-        fragColor = vec4(mixed_color, 1);
-    }
+    vec4 gaussian_color = texture(gaussian_color_texture, uv0);
+    fragColor = blend(geometry_color, gaussian_color);
 }
 #endif

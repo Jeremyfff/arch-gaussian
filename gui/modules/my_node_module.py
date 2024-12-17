@@ -17,9 +17,9 @@ from ImNodeEditor import Node, RightMenuManager
 from PIL import Image
 
 from gui import components
-from gui import global_var as g
-from gui.utils import io_utils
-from src.utils import progress_utils as pu
+from gui.global_app_state import g
+from gui.global_info import *
+from gui.utils import io_utils, progress_utils as pu
 
 PIN_TYPES = {'flow', 'any', 'float', 'vector2', 'vector3', 'vector4', 'int', 'str',
              }
@@ -177,7 +177,7 @@ def right_menu_item(name, category):
     return decorator
 
 
-bg_img = Image.open(os.path.join(g.GUI_RESOURCES_ROOT, 'BlueprintBackground.png'))
+bg_img = Image.open(os.path.join(RESOURCES_DIR, 'BlueprintBackground.png'))
 
 bg_texture_dict = {}
 
@@ -1063,7 +1063,6 @@ class NodeExtractFrames(NodeSimpleTemplate):
                          output_names=['output folder'],
                          output_types=['str'])
         self.width = 240
-        self.curr_frame = 0
         self.target_frames = 30
         self.indent_frames = 0
 
@@ -1075,20 +1074,16 @@ class NodeExtractFrames(NodeSimpleTemplate):
         imgui.set_next_item_width(80 * NE.mViewScale)
         changed, self.indent_frames = imgui.input_int('indent frames', self.indent_frames, 10)
         any_change |= changed
-        imgui.progress_bar(self.curr_frame / self.target_frames,
-                           (imgui.get_content_region_available_width(), 10 * NE.mViewScale))
-        imgui.text(f'progress: {self.curr_frame}/{self.target_frames}')
+        pu.p_draw_progress_bar("extract_frames", height=10 * NE.mViewScale)
+        imgui.text(f'progress: {pu.p_get_progress("extract_frames")}')
         if self.output[self.output_ids[0]]:
             if imgui.button('open output folder'):
                 os.startfile(self.output[self.output_ids[0]])
         return False
 
-    def update_progress(self, value):
-        self.curr_frame = value
-
     def process(self):
         from src.utils.video_utils import extract_frames
-        pu.create_contex('extract_frames', self.update_progress, )
+        pu.p_create_contex("extract_frames", "Extract Frames")
         success, output_folder = extract_frames(
             self.input[self.input_ids[0]],
             target_frames=self.target_frames,

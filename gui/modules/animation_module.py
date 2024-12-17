@@ -1,16 +1,24 @@
-import importlib
-import inspect
-import logging
-import math
-import time
+import imgui, importlib, inspect, logging, math, time, uuid
+from typing import Optional, Type
+from deprecated import deprecated
 
-import imgui
+from gui.components import c
+from gui.global_app_state import g
+from gui.modules import BaseModule
 
-from gui import global_var as g
-from gui.contents import pages
-from gui.modules import StyleModule
-from gui import components as c
+
+class AnimationModule(BaseModule):
+    _Ease: Optional[Type["Ease"]] = None
+
+    @classmethod
+    def m_init(cls):
+        cls._Ease = Ease
+
+
 class Ease:
+    """
+    Warning: 未经验证的方法，由ChatGpt自动生成，使用时请注意
+    """
     @staticmethod
     def Linear(t):
         return t
@@ -24,12 +32,26 @@ class Ease:
         return 1 - Ease.QuadraticIn(1 - t)
 
     @staticmethod
+    def QuadraticInOut(t):
+        if t < 0.5:
+            return 2 * t * t
+        else:
+            return 1 - 2 * Ease.QuadraticIn(1 - t)
+
+    @staticmethod
     def CubicIn(t):
         return t * t * t
 
     @staticmethod
     def CubicOut(t):
         return 1 - Ease.CubicIn(1 - t)
+
+    @staticmethod
+    def CubicInOut(t):
+        if t < 0.5:
+            return 4 * t * t * t
+        else:
+            return 1 - 4 * Ease.CubicIn(1 - t)
 
     @staticmethod
     def SineIn(t):
@@ -40,12 +62,23 @@ class Ease:
         return 1 - Ease.SineIn(1 - t)
 
     @staticmethod
+    def SineInOut(t):
+        return 0.5 - 0.5 * math.cos(t * math.pi)
+
+    @staticmethod
     def ExponentialIn(t):
-        return 2 ^ (10 * (t - 1))
+        return 2 ** (10 * (t - 1))
 
     @staticmethod
     def ExponentialOut(t):
         return 1 - Ease.ExponentialIn(1 - t)
+
+    @staticmethod
+    def ExponentialInOut(t):
+        if t < 0.5:
+            return 0.5 * 2 ** (10 * (2 * t - 1))
+        else:
+            return 1 - 0.5 * 2 ** (-10 * (2 * t - 1))
 
 
 class Tween:
@@ -145,39 +178,57 @@ class Tween:
         self.start_time = time.time() + self.delay
 
 
+__runtime__ = True
+if not __runtime__:
+    # for type hint
+    from gui.contents import pages
+
+    raise Exception("this code will never be reached")
+
+
 class AnimatedPageGroup:
     def __init__(self, vertical=True):
+
         self.first_shown = True
-        self.curr_page = 0
-        self.last_page = None
-        self.pages = {}
-        self.page_levels = {}
-        self.page_pos_from = {}
-        self.page_pos_to = {}
-        self.curr_page_pos = {}
-        self.curr_page_alpha = {}
+        self.curr_page_key: Optional[str] = None
+        self.last_page_key: Optional[str] = None
+        self.pages: dict[str:pages.BasePage] = {}
+        self.page_levels: dict[str: int] = {}
+        self.page_pos_from: dict[str: int] = {}
+        self.page_pos_to: dict[str:int] = {}
+        self.curr_page_pos: dict[str: int] = {}
+        self.curr_page_alpha: dict[str: float] = {}
         self.vertical = vertical
         self.level_stack = {}
+        self.name = str(uuid.uuid4())
 
-    def add_page(self, page_key, page_content, page_pos_from=200, page_pos_to=0, page_level=0):
+    @deprecated(reason="This function is deprecated. Please use add_page_obj instead.")
+    def add_page(self, page_obj):
+        self.add_page_obj(page_obj)
+
+    def add_page_obj(self, page_obj):
+        page_obj.set_parent_page_group(self)
+
+        page_key = page_obj.page_name
+        page_level = page_obj.page_level
+        page_pos_from = page_obj.page_pos_from
+        page_pos_to = page_obj.page_pos_to
+
         is_first = len(self.pages) == 0
-        self.pages[page_key] = page_content
+        self.pages[page_key] = page_obj
         self.page_levels[page_key] = page_level
         self.page_pos_from[page_key] = page_pos_from
         self.page_pos_to[page_key] = page_pos_to
+
         if is_first:
-            self.curr_page = page_key
-            self.last_page = page_key
+            self.curr_page_key = page_key
+            self.last_page_key = page_key
             self.curr_page_pos[page_key] = page_pos_to
             self.curr_page_alpha[page_key] = 1.0
             self.level_stack[page_level] = page_key
         else:
             self.curr_page_pos[page_key] = page_pos_from
             self.curr_page_alpha[page_key] = 0.0
-
-    def add_page_obj(self, page_obj):
-        page_obj.set_parent_page_group(self)
-        self.add_page(page_obj.page_name, page_obj, page_obj.page_pos_from, page_obj.page_pos_to, page_obj.page_level)
 
     def page_wrapper(self, key, page):
         Tween.step_animation(f'{key}_fade_in')
@@ -197,27 +248,31 @@ class AnimatedPageGroup:
         self.pop_alpha()
 
     def show(self):
+        imgui.push_style_color(imgui.COLOR_CHILD_BACKGROUND, 0, 0, 0, 0.0)
+        c.begin_child(f"child_{self.name}", imgui.get_content_region_available_width(), border=False)
+        imgui.pop_style_color()
         if self.first_shown:
-            pos = imgui.get_cursor_pos_y() if self.vertical else imgui.get_cursor_pos_x()
-            for key in self.page_pos_to.keys():
-                self.page_pos_to[key] = pos
-            self.curr_page_pos[self.curr_page] = self.page_pos_to[self.curr_page]
+            # pos = imgui.get_cursor_pos_y() if self.vertical else imgui.get_cursor_pos_x()
+            # for key in self.page_pos_to.keys():
+            #     self.page_pos_to[key] = pos
+            self.curr_page_pos[self.curr_page_key] = self.page_pos_to[self.curr_page_key]
             self.first_shown = False
         for key, page in self.pages.items():
             self.page_wrapper(key, page)
+        imgui.end_child()
 
     def switch_page(self, target_page):
-        if target_page == self.curr_page:
+        if target_page == self.curr_page_key:
             return
-        self.last_page = self.curr_page
-        self.curr_page = target_page
+        self.last_page_key = self.curr_page_key
+        self.curr_page_key = target_page
         duration = 0.3
         ease = Ease.CubicOut
         target_page_from = self.page_pos_from[target_page]
         target_page_to = self.page_pos_to[target_page]
-        last_page_from = self.page_pos_from[self.last_page]
-        last_page_to = self.page_pos_to[self.last_page]
-        if self.page_levels[target_page] >= self.page_levels[self.last_page]:
+        last_page_from = self.page_pos_from[self.last_page_key]
+        last_page_to = self.page_pos_to[self.last_page_key]
+        if self.page_levels[target_page] >= self.page_levels[self.last_page_key]:
             # 新页面的级别比原来页面的小， 或page级别相同
             last_page_from *= -1
             self.level_stack[self.page_levels[target_page]] = target_page
@@ -237,11 +292,11 @@ class AnimatedPageGroup:
                               duration,
                               lambda x: self.fade_func(target_page, x),
                               ease=ease)
-        Tween.start_animation(f'{self.last_page}_fade_out',
+        Tween.start_animation(f'{self.last_page_key}_fade_out',
                               last_page_to,
                               last_page_from,
                               duration,
-                              lambda x: self.fade_func(self.last_page, x),
+                              lambda x: self.fade_func(self.last_page_key, x),
                               ease=ease)
         Tween.start_animation(f'{target_page}_fade_alpha_in',
                               0.0,
@@ -249,11 +304,11 @@ class AnimatedPageGroup:
                               duration,
                               lambda x: self.alpha_fade_func(target_page, x),
                               ease=ease)
-        Tween.start_animation(f'{self.last_page}_fade_alpha_out',
+        Tween.start_animation(f'{self.last_page_key}_fade_alpha_out',
                               1.0,
                               0.0,
                               duration,
-                              lambda x: self.alpha_fade_func(self.last_page, x),
+                              lambda x: self.alpha_fade_func(self.last_page_key, x),
                               ease=ease)
 
     def switch_page_obj(self, page_obj):
@@ -288,7 +343,7 @@ class AnimatedPageGroup:
             if level != 0:
                 imgui.same_line()
             if level < length - 1:
-                text = f'{page}>'
+                text = f'{page} >'
             else:
                 text = page
             if imgui.button(text):
@@ -300,28 +355,46 @@ class AnimatedPageGroup:
         if c.icon_button('more-2-fill'):
             imgui.open_popup('pages settings')
         if imgui.begin_popup('pages settings'):
-            clicked, state = imgui.menu_item('reload all pages')
-            if clicked:
-                self.reload_all_pages()
-            imgui.end_popup()
+            if (self.curr_page_key is not None) and (self.pages[self.curr_page_key].cell_module is not None):
 
+                clicked, _ = imgui.menu_item("Expand All")
+                if clicked:
+                    self.pages[self.curr_page_key].cell_module.expand_all()
+                clicked, _ = imgui.menu_item("Collapse All")
+                if clicked:
+                    self.pages[self.curr_page_key].cell_module.collapse_all()
+                imgui.separator()
+            clicked, _ = imgui.menu_item('Reload All Pages')
+            if clicked:
+                self.reload_all_pages(preserve_data=False)
+            clicked, _ = imgui.menu_item('Reload All Pages (Preserve Data)')
+            if clicked:
+                self.reload_all_pages(preserve_data=True)
+            imgui.end_popup()
         imgui.separator()
         if page_clicked:
             self.switch_page(page_clicked)
 
-    def reload_all_pages(self):
-
+    def reload_all_pages(self, preserve_data=False):
+        from gui.contents import pages
         logging.info(f'[{self.__class__.__name__}] reloading all pages')
-        org_curr_page = self.curr_page
+        org_curr_page = self.curr_page_key
+        preserved_data = {}
+        if preserve_data:
+            preserved_data = pages.cache_data()
         pages.reload_pages()
         importlib.reload(pages)
+        if preserve_data:
+            pages.restore_data(preserved_data)
+
         caller_frame = inspect.currentframe().f_back.f_back
         caller_class = caller_frame.f_locals.get('cls', None)
         base_class_name = caller_class.__base__.__name__
         logging.info(f'[{self.__class__.__name__}] base class name: {base_class_name}')
         if base_class_name == 'BaseContent':
-            caller_class.c_init()
-            if 'page_group' in dir(caller_class):
+            caller_class.c_init()  # 如果继承自BaseContent，则可以运行c_init()方法
+            if 'page_group' in dir(caller_class):  # 如果其含有page_group变量
                 page_group = getattr(caller_class, 'page_group')
-                page_group.switch_page(org_curr_page)
-
+                if page_group is not None:
+                    # page_group.switch_page(org_curr_page)
+                    pass

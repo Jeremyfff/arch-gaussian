@@ -1,20 +1,20 @@
 from abc import abstractmethod
-from typing import Optional, Union
+from typing import Optional
 
 import imgui
 import numpy as np
-from moderngl_window.scene.camera import OrbitCamera, KeyboardCamera
+from moderngl_window.scene.camera import KeyboardCamera
 
-from gui import components as c
-from gui import global_var as g
-from gui.graphic.cameras import OrbitGaussianCamera
+from gui.components import c
+from gui.global_app_state import g
+from gui.graphic.cameras import GL_3DGS_Camera
 from gui.modules import EventModule, CursorModule
 
 
 class CameraBehaviour:
 
     def __init__(self):
-        self.camera: Optional[Union[KeyboardCamera, OrbitCamera, OrbitGaussianCamera]] = None
+        self.camera: Optional[GL_3DGS_Camera] = None
 
     def _key_event(self, key, action, modifiers):
         pass
@@ -51,17 +51,16 @@ class CameraBehaviour:
         EventModule.unregister_mouse_scroll_smooth_callback(self._hover_mouse_scroll_event_smooth)
         EventModule.unregister_key_event_callback(self._hover_key_event)
 
+    @abstractmethod
     def update_size(self, width, height):
-        self.camera.projection.update(aspect_ratio=width / height)
-
-    def update_projection(self, near=None, far=None, aspect_ratio=None, fov=None):
-        self.camera.projection.update(near=near, far=far, aspect_ratio=aspect_ratio, fov=fov)
+        raise NotImplementedError
 
     @abstractmethod
     def show_debug_info(self):
-        pass
+        raise NotImplementedError
 
 
+# TODO
 class FreeCameraBehaviour(CameraBehaviour):
     def __init__(self):
         super().__init__()
@@ -107,40 +106,45 @@ class FreeCameraBehaviour(CameraBehaviour):
 
 
 class OrbitCameraBehaviour(CameraBehaviour):
-    def __init__(self, _init_camera=True):
+    def __init__(self, width, height):
         super().__init__()
-        if _init_camera:
-            self.camera = OrbitCamera()
-            self.camera.angle_x = -90
-            self.camera.angle_y = -135
-            self.camera.projection.update(near=0.1, far=1000)
+        self.camera = GL_3DGS_Camera(width, height)
 
         self.in_pan_mode = False
         self.in_pan_z_mode = False
 
+    def update_size(self, width, height):
+        self.camera.update_size(width, height)
+        self.camera.update()
+
+    # region Events
     def _mouse_drag_event(self, x: int, y: int, dx, dy):
         _ = x, y
         if self.in_pan_mode:
-            # 获取相机的视图矩阵
+            # pan mode
             view_matrix = self.camera.matrix
             r = np.array(view_matrix[:3, 0])
             u = np.array(view_matrix[:3, 1])
-            delta = (r * -dx + u * -dy) * self.camera.mouse_sensitivity * self.camera.radius / 200.0
+            delta = (r * -dx + u * dy) * self.camera.mouse_sensitivity * self.camera.radius / 200.0
             self.camera.target = np.array(self.camera.target) + delta
-            return
-        if self.in_pan_z_mode:
+        elif self.in_pan_z_mode:
+            # pan z mode
             view_matrix = self.camera.matrix
             f = np.array(view_matrix[:3, 2])
             delta = (f * dy) * self.camera.mouse_sensitivity * self.camera.radius / 200.0
             self.camera.target = np.array(self.camera.target) + delta
-            return
-        # normal mode
-        self.camera.rot_state(dx * 2, -dy * 2)
+        else:
+            # normal mode
+            self.camera.rot_state(dx * 2, dy * 2)
+
+        self.camera.update()
 
     def _hover_mouse_scroll_event_smooth(self, x_offset: float, y_offset: float):
-
+        if y_offset == 0:
+            return
         self.camera.radius -= y_offset * self.camera.zoom_sensitivity * self.camera.radius / 4.0
         self.camera.radius = max(0.01, self.camera.radius)
+        self.camera.update()
 
     def _hover_key_event(self, key, action, modifiers):
         keys = g.mWindowEvent.wnd.keys
@@ -175,7 +179,6 @@ class OrbitCameraBehaviour(CameraBehaviour):
         CursorModule.set_default_cursor()
 
     def unregister_events(self, x, y, button):
-        # 当退出op mode的时候
         super().unregister_events(x, y, button)
 
     def unregister_hovering_events(self):
@@ -184,8 +187,9 @@ class OrbitCameraBehaviour(CameraBehaviour):
         self._exit_pan_mode()
         self._exit_pan_z_mode()
 
+    # endregion
+
     def show_debug_info(self):
-        super().show_debug_info()
         c.bold_text('[OrbitCameraBehaviour]')
         imgui.indent()
         imgui.text(f'angle_x: {self.camera.angle_x:.1f} '
@@ -199,35 +203,7 @@ class OrbitCameraBehaviour(CameraBehaviour):
         imgui.text(f'in_pan_mode: {self.in_pan_mode} in_pan_z_mode: {self.in_pan_z_mode}')
         imgui.unindent()
 
-
-class OrbitGaussianCameraBehaviour(OrbitCameraBehaviour):
-    def __init__(self, width, height):
-        super().__init__(_init_camera=False)
-        self.camera = OrbitGaussianCamera(width, height)
-        self.camera.angle_x = -90
-        self.camera.angle_y = -135
-        self.camera.projection.update(near=0.1, far=1000)
-        self.camera.update()  # 初始化各类矩阵和变量
-
-        self._hover_mouse_release_event_func = None
-
-    def _mouse_drag_event(self, x: int, y: int, dx, dy):
-        super()._mouse_drag_event(x, y, dx, dy)
-        self.camera.update()
-
-    def _hover_mouse_scroll_event_smooth(self, x_offset: float, y_offset: float):
-        super()._hover_mouse_scroll_event_smooth(x_offset, y_offset)
-        if y_offset != 0:
-            self.camera.update()
-
-    def update_size(self, width, height):
-        super().update_size(width, height)  # 更新projection
-        self.camera.update_size(width, height)  # 更新gaussian camera特有的width 和height
-        self.camera.update()  # 更新gaussian camera的各类矩阵
-
-    def show_debug_info(self):
-        super().show_debug_info()
-        c.bold_text('[OrbitGaussianCameraBehaviour]')
+        c.bold_text('[GL_3DGS_Camera]')
         imgui.same_line()
         imgui.text(
-            f'P: {self.camera.P} r: {str(self.camera._r)} u: {str(self.camera._u)} f: {str(self.camera._f)}')
+            f'P: {self.camera.P} r: {str(self.camera.r)} u: {str(self.camera.u)} f: {str(self.camera.f)}')

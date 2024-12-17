@@ -2,20 +2,20 @@ import logging
 from abc import abstractmethod
 from typing import Optional
 
-from gui.modules.animation_module import AnimatedPageGroup
-
+from gui.modules.cell_module import CellModule
 
 class BasePage:
     _inited = False
-    page_group: Optional[AnimatedPageGroup] = None
+    parent_page_group = None
     page_name = ''
     page_level = -1
     page_pos_from = 200
     page_pos_to = 0
+    cell_module:Optional[CellModule] = None
 
     @classmethod
     def set_parent_page_group(cls, parent):
-        cls.page_group = parent
+        cls.parent_page_group = parent
 
     @classmethod
     def _p_init(cls):

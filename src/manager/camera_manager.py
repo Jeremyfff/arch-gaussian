@@ -1,16 +1,17 @@
 import random
 
 from scene.cameras import Camera
+from scene.dataset_readers import CameraInfo
 from utils.camera_utils import cameraList_from_camInfos
 
 
 class CameraManager:
     def __init__(self):
-        self.train_cameras = {}
-        self.test_cameras = {}
-        self.default_resolution_scale = 1.0
-        self.resolution_scales = [self.default_resolution_scale]
-        self.sorted_cameras = {}
+        self.train_cameras: dict[float: list[Camera]] = {}
+        self.test_cameras: dict[float: list[Camera]] = {}
+        self.default_resolution_scale: float = 1.0
+        self.resolution_scales: list[float] = [self.default_resolution_scale]
+        self.sorted_cameras: dict[float: list[Camera]] = {}
 
     def create_cameras(self, args, scene_info):
         """

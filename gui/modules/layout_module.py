@@ -3,8 +3,8 @@ from typing import Optional
 
 import imgui
 
-from gui import components as c
-from gui import global_var as g
+from gui.components import c
+from gui.global_app_state import g
 from gui.modules.base_module import BaseModule
 
 
@@ -83,9 +83,10 @@ class LayoutElement:
 class LayoutScheme:
     def __init__(self, scheme_name):
         self.scheme_name = scheme_name
-        self._size_dict = {}
-        self._pos_dict = {}
+
         self.root_layout = LayoutElement('root', None, LayoutMode.fixed, 1)
+
+        self._child_dict: dict[str: LayoutElement] = {}  # 递归所有的child
 
         # add your layout here
 
@@ -96,29 +97,27 @@ class LayoutScheme:
         self.root_layout.size = g.mWindowSize
         self.root_layout.update_children_size()
 
-        # update _size_dict and _pos_dict
+        # update _child_dict
         children = self.root_layout.children
         while children:
             next_children = []
             for child in children:
-                self._size_dict[child.layout_name] = child.size
-                self._pos_dict[child.layout_name] = child.pos
+                self._child_dict[child.layout_name] = child
                 next_children += child.children
             children = next_children
 
+    def get_child(self, name):
+        return self._child_dict[name]
+
     def get_pos(self, name):
-        return self._pos_dict[name]
+        return self.get_child(name).pos
 
     def get_size(self, name):
-        return self._size_dict[name]
+        return self.get_child(name).size
 
 
 class LayoutModule(BaseModule):
-    layout = LayoutScheme('main layout')
-
-    vertical_resizable_layout: Optional[LayoutElement] = None  # 竖向的可以调整大小的layout element
-    horizontal_resizable_layout: Optional[LayoutElement] = None  # 横向的可以调整大小的layout element
-
+    layout: Optional[LayoutScheme] = None
     shadow_module = None
 
     @classmethod
@@ -126,25 +125,34 @@ class LayoutModule(BaseModule):
         super().m_init()
         from gui.modules import ShadowModule
         cls.shadow_module = ShadowModule
+        from gui.modules import EventModule
+        EventModule.register_global_scale_change_callback(cls._on_global_scale_changed)
+
         style = g.mImguiStyle
+        # create a default LayoutScheme
+        cls.layout = LayoutScheme('main layout')
+        # level1
         cls.layout.root_layout.set_layout_direction(LayoutDirection.Vertical)
         cls.layout.root_layout.add_child('level1_top', LayoutMode.fixed,
-                                         g.FONT_SIZE + style.window_padding[1] * 2 + style.frame_padding[1] * 2)
+                                         g.font_size + style.window_padding[1] * 2 + style.frame_padding[1] * 2)
         level1_mid = cls.layout.root_layout.add_child('level1_mid', LayoutMode.flexible, 1)
         cls.layout.root_layout.add_child('level1_bot', LayoutMode.fixed,
-                                         g.FONT_SIZE + style.window_padding[1] * 2 + style.frame_padding[1] * 2)
-
+                                         g.font_size + style.window_padding[1] * 2 + style.frame_padding[1] * 2)
+        # level2
         level1_mid.set_layout_direction(LayoutDirection.Horizontal)
+        nav_bar_width = g.font_size + style.window_padding[0] * 2 + style.frame_padding[0] * 2
         level1_mid.add_child('level2_left', LayoutMode.fixed,
-                             g.FONT_SIZE + style.window_padding[0] * 2 + style.frame_padding[0] * 2)
+                             nav_bar_width)
         level2_right = level1_mid.add_child('level2_right', LayoutMode.flexible, 1)
 
+        # level3
         level2_right.set_layout_direction(LayoutDirection.Horizontal)
-        level3_left = level2_right.add_child('level3_left', LayoutMode.fixed, 400 * g.GLOBAL_SCALE)
+        level3_left = level2_right.add_child('level3_left', LayoutMode.fixed, 400 * g.global_scale)
         cls.vertical_resizable_layout = level3_left
         level2_right.add_child('level3_middle', LayoutMode.fixed, 2)
         level3_right = level2_right.add_child('level3_right', LayoutMode.flexible, 1)  # main graphic view
 
+        # level4
         level3_right.set_layout_direction(LayoutDirection.Vertical)
         level3_right.add_child('level4_top', LayoutMode.flexible, 1)
         level3_right.add_child('level4_bot', LayoutMode.flexible, 1)
@@ -154,7 +162,16 @@ class LayoutModule(BaseModule):
     def on_resize(cls):
         cls.layout.update()
 
+    @classmethod
+    def _on_global_scale_changed(cls):
+        cls.m_init()
+
     class LayoutWindow:
+        """
+        使用with 语句包裹，让其中内容成为layout布局的一部分
+        with LayoutModule.LayoutWindow(your layout name, your window name, closable, flags):
+            do something
+        """
         default_flags = imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_BRING_TO_FRONT_ON_FOCUS
         default_flags |= imgui.WINDOW_NO_SCROLLBAR | imgui.WINDOW_NO_SCROLL_WITH_MOUSE
 
@@ -171,7 +188,9 @@ class LayoutModule(BaseModule):
             return self
 
         def __exit__(self, exc_type, exc_value, traceback):
-            LayoutModule.shadow_module.draw_shadows()
+            # LayoutModule.shadow_module.draw_shadows()
+            # we do not draw shadows here in the latest version
+            # the drawing of shadows is now controlled by ui manager
             imgui.end()
 
     class LayoutChild:

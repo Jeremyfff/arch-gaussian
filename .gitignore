@@ -1,5 +1,13 @@
-/output/
-/data/
+/output/*
+/data/*
 
 *.splat
 /cache/
+/log/*
+/RePaint/data/pretrained/*
+/RePaint/log/*
+
+/src/submodules/diff-gaussian-rasterization-fork/diff_gaussian_rasterization_fork.egg-info/
+/src/submodules/diff-gaussian-rasterization-fork/cmake-build-debug/
+/src/submodules/diff-gaussian-rasterization-fork/.idea/
+

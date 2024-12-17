@@ -5,13 +5,13 @@ from argparse import Namespace
 
 import imgui
 
-from gui import components as c
-from gui import global_var as g
+from gui.components import c
+from gui.global_app_state import g
 from gui.contents.pages.base_page import BasePage
 from gui.modules import StyleModule
-from scripts import config
 from scripts.project_manager import ProjectManager
-from src.utils import progress_utils as pu
+from gui.utils import progress_utils as pu
+from gui.user_data import user_settings
 
 
 class PrepareSharedComponents:
@@ -47,11 +47,11 @@ class PrepareMainPage(BasePage):
         with imgui.font(g.mFontBold):
             imgui.text('PREPARE DATASET')
         if c.icon_text_button('screenshot-2-fill', 'extract video'):
-            cls.page_group.switch_page_obj(PrepareExtractVideoPage)
+            cls.parent_page_group.switch_page_obj(PrepareExtractVideoPage)
         if c.icon_text_button('earth-line', 'google earth'):
-            cls.page_group.switch_page_obj(PrepareGoogleEarthPage)
+            cls.parent_page_group.switch_page_obj(PrepareGoogleEarthPage)
         if c.icon_text_button('vector-polygon', 'colmap process'):
-            cls.page_group.switch_page_obj(PrepareColmapPage)
+            cls.parent_page_group.switch_page_obj(PrepareColmapPage)
 
 
 class PrepareExtractVideoPage(BasePage):
@@ -61,7 +61,6 @@ class PrepareExtractVideoPage(BasePage):
     mCurrSelectedMp4Idx = 0
     mExtractTargetFrames = 30
     mExtractIndentFrames = 0
-    mExtractProgress = 0
     mExtractingVideo = False
 
     @classmethod
@@ -102,9 +101,7 @@ class PrepareExtractVideoPage(BasePage):
             if imgui.button('EXTRACT FRAMES', width=imgui.get_content_region_available_width()):
                 threading.Thread(target=cls._extract_video).start()
         StyleModule.pop_button_color()
-        imgui.progress_bar(float(cls.mExtractProgress) / cls.mExtractTargetFrames,
-                           (imgui.get_content_region_available_width(), 10 * g.GLOBAL_SCALE))
-
+        pu.p_draw_progress_bar("extract_frames")
         PrepareSharedComponents.show_input_image_gallery(cls.mExtractingVideo)
 
     @classmethod
@@ -113,7 +110,7 @@ class PrepareExtractVideoPage(BasePage):
         cls.mExtractingVideo = True
         os.makedirs(ProjectManager.curr_project.get_info('input_image_folder'), exist_ok=True)
         ProjectManager.curr_project.scan_input_images()
-        pu.create_contex('extract_frames', cls._update_extract_progress)
+        pu.p_create_contex("extract_frames", "Extract Frames")
         extract_frames(
             video_path=ProjectManager.curr_project.get_info('mp4_file_paths')[cls.mCurrSelectedMp4Idx],
             target_frames=cls.mExtractTargetFrames,
@@ -122,10 +119,6 @@ class PrepareExtractVideoPage(BasePage):
         time.sleep(1.1)
         cls.mExtractingVideo = False
 
-    @classmethod
-    def _update_extract_progress(cls, value):
-        cls.mExtractProgress = value
-
 
 class PrepareGoogleEarthPage(BasePage):
     page_name = 'google earth'
@@ -133,7 +126,6 @@ class PrepareGoogleEarthPage(BasePage):
 
     mFootageProcessStep = 1
     mFootageResize = False
-    mFootageProgress = 0
     mProcessingFootage = False
 
     @classmethod
@@ -164,7 +156,7 @@ class PrepareGoogleEarthPage(BasePage):
         if cls.mProcessingFootage:
             StyleModule.push_disabled_button_color()
             imgui.button('PROCESSING FOOTAGE (RUNNING...)', width=imgui.get_content_region_available_width())
-            imgui.text(f'progress ({cls.mFootageProgress})')
+            pu.p_draw_progress_bar("process_google_earth_frames")
         else:
             StyleModule.push_highlighted_button_color()
             if imgui.button('PROCESS FOOTAGE', width=imgui.get_content_region_available_width()):
@@ -187,7 +179,7 @@ class PrepareGoogleEarthPage(BasePage):
         cls.mProcessingFootage = True
         os.makedirs(ProjectManager.curr_project.get_info('input_image_folder'), exist_ok=True)
         ProjectManager.curr_project.scan_input_images()
-        pu.create_contex('process_google_earth_frames', cls._update_footage_progress)
+        pu.p_create_contex("process_google_earth_frames", "Process Google Earth Frames")
         process_google_earth_frames(
             input_folder_path=ProjectManager.curr_project.get_info('footage_image_folder'),
             output_folder_path=ProjectManager.curr_project.get_info('input_image_folder'),
@@ -198,9 +190,7 @@ class PrepareGoogleEarthPage(BasePage):
         time.sleep(1.1)
         cls.mProcessingFootage = False
 
-    @classmethod
-    def _update_footage_progress(cls, value):
-        cls.mFootageProgress = value
+
 
 
 class PrepareColmapPage(BasePage):
@@ -216,13 +206,12 @@ class PrepareColmapPage(BasePage):
 
     @classmethod
     def p_init(cls):
-        from gui import global_userinfo
         cls.mColmapArgs = {
             'no_gpu': False,
             'skip_matching': False,
             'source_path': ProjectManager.curr_project.get_info('data_root'),
             'camera': "OPENCV",
-            'colmap_executable': global_userinfo.get_user_settings('colmap_executable'),
+            'colmap_executable': user_settings.colmap_executable,
             'resize': False,
             'magick_executable': ""
         }

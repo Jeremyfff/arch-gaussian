@@ -1,0 +1,2 @@
+nuitka --mingw64 --show-progress --standalone --disable-console --enable-plugin=pyside6 --plugin-enable=numpy --onefile --remove-output camera.py
+nuitka --show-progress --standalone --enable-plugin=torch --plugin-enable=numpy GUI.py

@@ -1,21 +1,13 @@
 import imgui
 
-from gui import components as c
-from gui import global_var as g
+from gui.components import c
+from gui.global_app_state import g
 from gui.contents.pages.base_page import BasePage
 from gui.contents.pages.full_page import FullPage
-from gui.modules import StyleModule, EventModule
 from gui.modules.cell_module import CellModule
-from gui.utils import io_utils
-from scripts.project_manager import ProjectManager
-from src.utils import progress_utils as pu
 
 __runtime__ = True
 if not __runtime__:
-    from src.manager.camera_manager import CameraManager
-    from src.manager.scene_manager import SceneManager
-    from gui.contents import ViewerContent
-
     raise Exception('this code will never be reached. ')
 
 
@@ -33,7 +25,7 @@ class Edit3DGSMainPage(BasePage):
         with imgui.font(g.mFontBold):
             imgui.text('TRAIN 3D GAUSSIAN')
         if c.icon_text_button('rocket-2-fill', 'full edit'):
-            cls.page_group.switch_page_obj(FullEditPage)
+            cls.parent_page_group.switch_page_obj(FullEditPage)
 
 
 class FullEditPage(FullPage):
@@ -50,12 +42,14 @@ class FullEditPage(FullPage):
         cls.cell_module.register_cell('EDIT GEOMETRY COLLECTION', cls.geometry_collection_operation_panel_cell)
         cls.cell_module.register_cell('CREATE MASKS', cls.mask_operation_panel_cell)
         cls.cell_module.register_cell('CREATE DATASET', cls.create_dataset_cell)
+        cls.cell_module.register_cell('REPAINT', cls.repaint_cell)
         cls.cell_module.add_cell_to_display_queue('RESULT LOADER')
         cls.cell_module.add_cell_to_display_queue('RENDERER SETTINGS')
         cls.cell_module.add_cell_to_display_queue('EDIT GAUSSIAN COLLECTION')
         cls.cell_module.add_cell_to_display_queue('EDIT GEOMETRY COLLECTION')
         cls.cell_module.add_cell_to_display_queue('CREATE MASKS')
         cls.cell_module.add_cell_to_display_queue('CREATE DATASET')
+        cls.cell_module.add_cell_to_display_queue('REPAINT')
     @classmethod
     def p_call(cls):
         super().p_call()

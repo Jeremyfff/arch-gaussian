@@ -3,7 +3,7 @@ from typing import Optional
 import imgui
 import numpy as np
 
-from gui import global_var as g
+from gui.global_app_state import g
 from gui.contents.base_content import BaseContent
 from gui.modules import CursorModule
 from gui.modules import DrawingModule
@@ -79,6 +79,6 @@ class VerticalResizeHandleContent(BaseContent):
         _ = x, y, dy
         if not cls.can_drag:
             return
-        resizable_layout = LayoutModule.vertical_resizable_layout
+        resizable_layout = LayoutModule.layout.get_child("level3_left")
         resizable_layout.set_width(resizable_layout.get_width() + dx)
         LayoutModule.layout.update()

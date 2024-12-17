@@ -2,23 +2,23 @@ import logging
 import os
 import random
 import threading
+import traceback
 from abc import abstractmethod
-from typing import Optional
+from typing import Optional, Type
 
 import imgui
 import numpy as np
 
-from gui import components as c, global_userinfo
-from gui import global_var as g
+from gui.components import c
 from gui.contents.pages.base_page import BasePage
+from gui.global_app_state import g
 from gui.modules import StyleModule, EventModule
 from gui.modules.cell_module import CellModule
-from gui.utils import arg_utils
-from gui.utils import io_utils
-from gui.utils import name_utils
+from gui.user_data import user_settings
+from gui.utils import arg_utils, io_utils, name_utils, progress_utils as pu
+
 from scripts.project_manager import ProjectDataKeys as pd
 from scripts.project_manager import ProjectManager as pm
-from src.utils import progress_utils as pu
 
 __runtime__ = True
 if not __runtime__:
@@ -27,8 +27,9 @@ if not __runtime__:
     from gui.contents import ViewerContent
     from src.manager.gaussian_manager import GaussianManager
     from gui.graphic.geometry import BaseGeometry
-    from gui.graphic.geometry import GaussianPointCloud, WiredBoundingBox, SimpleCube
-
+    from gui.graphic.geometry import WiredBoundingBox, SimpleCube
+    from RePaint.repaint_manager import RepaintManager
+    from scene.cameras import Camera
     raise Exception('this code will never be reached. ')
 
 
@@ -39,7 +40,7 @@ class FullPage(BasePage):
     page_level = 1
     cell_module = CellModule()
 
-    ViewerContentClass: "ViewerContent" = None
+    ViewerContentClass: Type["ViewerContent"] = None
 
     @classmethod
     @abstractmethod
@@ -50,18 +51,25 @@ class FullPage(BasePage):
     @classmethod
     @abstractmethod
     def p_call(cls):
+        # Display UI
         cls.cell_module.show()
 
+        # region handle events
+        # fix scene complete => trigger on_scene_manager_changed
         if cls._is_fix_scene_complete_in_frame:
             cls._is_fix_scene_complete_in_frame = False
             EventModule.on_scene_manager_changed(cls._scene_manager)
 
+        # gaussian_changed => trigger on_gaussian_manager_changed
         if cls._is_gaussian_changed_in_frame:
             cls._is_gaussian_changed_in_frame = False
             EventModule.on_gaussian_manager_changed(cls._gm)
+
+        # camera_manager_changed => trigger on_camera_manager_changed
         if cls._is_camera_manager_changed_in_frame:
             cls._is_camera_manager_changed_in_frame = False
             EventModule.on_camera_manager_changed(cls._cm)
+        # endregion
 
     # region cells
     @classmethod
@@ -93,7 +101,8 @@ class FullPage(BasePage):
             if imgui.button('LOAD AND FIX SCENE INFO'):
                 threading.Thread(target=cls._fix_scene).start()
         StyleModule.pop_button_color()
-        imgui.progress_bar(cls._fix_scene_progress, (imgui.get_content_region_available_width(), 10 * g.GLOBAL_SCALE))
+        pu.p_draw_progress_bar("fix_scene")
+
         # endregion
         if cls._scene_manager is None:
             imgui.text('No SceneManager')
@@ -121,7 +130,7 @@ class FullPage(BasePage):
             if imgui.button('LOAD CAMERAS'):
                 threading.Thread(target=cls._load_cameras).start()
 
-        imgui.progress_bar(cls._load_camera_progress, (imgui.get_content_region_available_width(), 10 * g.GLOBAL_SCALE))
+        pu.p_draw_progress_bar("load_camera")
         StyleModule.pop_button_color()
         # endregion
 
@@ -135,12 +144,38 @@ class FullPage(BasePage):
         if resolution_scales[0] not in cls._cm.train_cameras.keys():
             imgui.text('waiting...')
             return
-        sorted_cameras = cls._cm.sorted_cameras[resolution_scales[0]]
+        sorted_cameras: list["Camera"] = cls._cm.sorted_cameras[resolution_scales[0]]
         imgui.text(f'loaded train_cameras: {len(sorted_cameras)}')
         changed, cls._imgui_curr_selected_camera_idx = imgui.slider_int(
             'camera idx', cls._imgui_curr_selected_camera_idx, 0, len(sorted_cameras) - 1)
         if changed:
             cls.ViewerContentClass.use_camera(sorted_cameras[cls._imgui_curr_selected_camera_idx])
+
+        imgui.separator()
+        imgui.text("debug region")
+        if imgui.button("reduce cameras"):
+            from scene.dataset_readers import CameraInfo
+            sorted_cams: list[CameraInfo] = cls._cm.sorted_cameras[1.0]
+
+            def select_objects(objects: list['CameraInfo'], num_objects: int):
+                length = len(objects)
+
+                if length <= num_objects:
+                    return objects  # 如果列表长度小于等于要选择的对象数量，直接返回整个列表
+
+                interval = length // num_objects
+                selected_objects = [objects[0]]  # 选择第一个对象
+
+                for i in range(1, num_objects):
+                    index = min(i * interval, length - 1)  # 避免索引超出列表范围
+                    selected_objects.append(objects[index])
+
+                return selected_objects
+
+            selected_cams: list[CameraInfo] = select_objects(sorted_cams, 10)
+            for cam in selected_cams:
+                print(cam.image_name)
+            cls._cm.train_cameras[1.0] = selected_cams
 
     _create_gaussian_from_iter = 0
     _enable_create_gaussian_from_iter = False
@@ -164,7 +199,8 @@ class FullPage(BasePage):
 
     @classmethod
     def gt_socket_cell(cls):
-        imgui.text('ground truth cell')
+        imgui.text(f'has ground truth cell = {cls._gt_socket is not None}')
+        cls._show_gt_socket_editor()
 
     @classmethod
     def loss_socket_cell(cls):
@@ -183,7 +219,7 @@ class FullPage(BasePage):
                 threading.Thread(target=cls._train_gaussian).start()
         StyleModule.pop_button_color()
 
-        imgui.progress_bar(cls._train_progress, (imgui.get_content_region_available_width(), 10 * g.GLOBAL_SCALE))
+        pu.p_draw_progress_bar("train_gaussian")
 
         if cls._is_training_gaussian:
             if imgui.button("Force Stop"):
@@ -198,7 +234,7 @@ class FullPage(BasePage):
     def result_loader_cell(cls):
         imgui.text('Load File: ')
         # load gaussian from iteration
-        gm = c.load_gaussian_from_iteration_button()
+        gm = c.load_gaussian_from_iteration_button(uid="load_gaussian_from_iteration_button_in_full_page_result_loader_cell")
         if gm is not None:
             cls._gm = gm
             cls._is_gaussian_changed_in_frame = True  # mark as True to call events
@@ -217,32 +253,50 @@ class FullPage(BasePage):
 
     @classmethod
     def renderer_operation_panel_cell(cls):
-        imgui.text('renderer operation panel')
         if cls.ViewerContentClass is None:
             imgui.text('no viewer content module')
             return
-        cls.ViewerContentClass.renderer_operation_panel()
+        if cls.ViewerContentClass.mRenderer is None:
+            imgui.text('no renderer')
+            return
+        cls.ViewerContentClass.mRenderer.operation_panel()
+
+    @classmethod
+    def scene_basic_geometry_collection_operatio_panel_cell(cls):
+        if cls.ViewerContentClass is None:
+            imgui.text('no viewer content module')
+            return
+        if cls.ViewerContentClass.mRenderer is None:
+            imgui.text('no renderer')
+            return
+        cls.ViewerContentClass.mRenderer.show_scene_basic_geometry_collection_panel()
 
     @classmethod
     def geometry_collection_operation_panel_cell(cls):
         if cls.ViewerContentClass is None:
             imgui.text('no viewer content module')
             return
-        cls.ViewerContentClass.geometry_collection_operation_panel()
+        if cls.ViewerContentClass.mRenderer is None:
+            imgui.text('no renderer')
+            return
+        cls.ViewerContentClass.mRenderer.show_geometry_collection_panel()
 
     @classmethod
     def debug_collection_operation_panel_cell(cls):
         if cls.ViewerContentClass is None:
             imgui.text('no viewer content module')
             return
-        cls.ViewerContentClass.debug_collection_operation_panel()
+        if cls.ViewerContentClass.mRenderer is None:
+            imgui.text('no renderer')
+            return
+        cls.ViewerContentClass.mRenderer.show_debug_collection_panel()
 
     @classmethod
     def gaussian_collection_operation_panel_cell(cls):
         if cls.ViewerContentClass is None:
             imgui.text('no viewer content module')
             return
-        cls.ViewerContentClass.gaussian_collection_operation_panel()
+        cls.ViewerContentClass.mRenderer.show_gaussian_collection_panel()
 
     _imgui_mask_creation_msg = ""
     _imgui_curr_editing_mask_name_idx = -1
@@ -257,25 +311,22 @@ class FullPage(BasePage):
         if cls.ViewerContentClass is None:
             imgui.text('no viewer content module')
             return
-        if not cls.ViewerContentClass.has_gaussian_renderer():
-            imgui.text("no gaussian renderer")
-            return
         # region target gaussian group
 
         if imgui.button("select target gaussian"):
             imgui.open_popup("select target gaussian popup")
         if imgui.begin_popup("select target gaussian popup"):
-            for i, geo in enumerate(cls.ViewerContentClass.mRenderer.gaussian_collection.geometries):
-                clicked, _ = imgui.menu_item(geo.name)
+            for i, gm in enumerate(cls.ViewerContentClass.mRenderer.gaussian_collection.gaussian_managers):
+                clicked, _ = imgui.menu_item(gm.source_ply_path)  # TODO change to name
                 if clicked:
-                    cls._mask_target_gaussian = geo
+                    cls._mask_target_gaussian = gm
                     imgui.close_current_popup()
             imgui.end_popup()
         imgui.same_line()
         if cls._mask_target_gaussian is None:
             c.warning_text("no target gaussian")
         else:
-            c.text_with_max_length(cls._mask_target_gaussian.name, 15)
+            c.text_with_max_length(cls._mask_target_gaussian.source_ply_path, 15)  # TODO change to name
         # endregion
         # region target mask geometry group
 
@@ -320,10 +371,10 @@ class FullPage(BasePage):
         c.begin_child("masks region",
                       height=max(
                           min(
-                              g.GLOBAL_SCALE * 300,
+                              g.global_scale * 300,
                               c.get_icon_double_text_button_height() * len(cls._gaussian_mask_wrappers)
                           ),
-                          100 * g.GLOBAL_SCALE))
+                          100 * g.global_scale))
         cls._imgui_mask_list_child_width = imgui.get_content_region_available_width()
         for i, mask_wrapper in enumerate(cls._gaussian_mask_wrappers):
             if cls._imgui_curr_editing_mask_name_idx == i:
@@ -438,16 +489,14 @@ class FullPage(BasePage):
         if cls.ViewerContentClass is None:
             imgui.text('no viewer content module')
             return
-        if not cls.ViewerContentClass.has_gaussian_renderer():
-            imgui.text("no gaussian renderer")
-            return
         # region mask boundary debug bbox
         _, cls._imgui_preview_boundary_bbox = imgui.checkbox("preview boundary bbox", cls._imgui_preview_boundary_bbox)
         imgui.same_line()
         if imgui.button("regenerate boundary bbox"):
             cls._mask_boundary_debug_bbox = None
         if cls._mask_boundary_debug_bbox is None:
-            cls.create_mask_boundary_debug_bbox()
+            # cls.create_mask_boundary_debug_bbox()
+            pass
         if cls._imgui_preview_boundary_bbox:
             cls.ViewerContentClass.mRenderer.debug_collection.draw_bbox(cls._mask_boundary_debug_bbox,
                                                                         skip_examine=True)
@@ -457,12 +506,12 @@ class FullPage(BasePage):
         if cls._mask_boundary_debug_bbox is not None:
             bbox: "WiredBoundingBox" = cls._mask_boundary_debug_bbox
             changed, bound_min = imgui.drag_float3("bound_min", *bbox.bound_min,
-                                                   global_userinfo.get_user_settings('move_scroll_speed'))
+                                                   user_settings.move_scroll_speed)
             if changed:
                 cls._mask_boundary_debug_bbox.set_bound_min(bound_min)
                 pm.curr_project.set_project_data(pd.MASK_BOUNDARY_DEBUG_BBOX_MIN, bound_min)
             changed, bound_max = imgui.drag_float3("bound_max", *bbox.bound_max,
-                                                   global_userinfo.get_user_settings('scale_scroll_speed'))
+                                                   user_settings.scale_scroll_speed)
             if changed:
                 cls._mask_boundary_debug_bbox.set_bound_max(bound_max)
                 pm.curr_project.set_project_data(pd.MASK_BOUNDARY_DEBUG_BBOX_MAX, bound_max)
@@ -477,7 +526,7 @@ class FullPage(BasePage):
         if cls._mask_ground_debug_cube is not None:
             cube: "SimpleCube" = cls._mask_ground_debug_cube
             changed, cls._ground_height = imgui.drag_float("ground height", cls._ground_height,
-                                                           global_userinfo.get_user_settings('move_scroll_speed'))
+                                                           user_settings.move_scroll_speed)
             if changed:
                 cube.translation = (0, 0, cls._ground_height)
                 pm.curr_project.set_project_data(pd.GROUND_HEIGHT, cls._ground_height)
@@ -516,6 +565,92 @@ class FullPage(BasePage):
                 cls.on_create_dataset_stop()
             # endregion
 
+    _bw_threshold = 0.5
+    _rm: Optional["RepaintManager"] = None
+
+    @classmethod
+    def repaint_cell(cls):
+        imgui.text("repaint cell")
+        try:
+            # if cls._gm is None:
+            #     c.warning_text("no gaussian manager, please load gaussian first")
+            #     return
+            # if not len(cls._gaussian_mask_wrappers):
+            #     c.warning_text("no gaussian mask wrapper, please create one first")
+            #     return
+            if imgui.button("set camera"):
+                mRenderer = cls.ViewerContentClass.mRenderer
+                camera = mRenderer.camera
+                camera.target = (0, 0, 0)
+                camera.radius = 2
+                camera.angle_x = -30
+                camera.angle_y = -135
+                camera.update()
+            if imgui.button("cache gaussian"):
+                cls._gm.cache()
+                print("gaussian cached")
+            if imgui.button("restore gaussian"):
+                cls._gm.restore()
+                print("gaussian restored")
+
+            if imgui.button("take snapshot"):
+                print("take snapshot button pressed")
+                mRenderer = cls.ViewerContentClass.mRenderer
+                camera = mRenderer.camera
+
+                if len(cls._imgui_curr_selected_mask_wrappers):
+                    mask_wrapper = list(cls._imgui_curr_selected_mask_wrappers)[0]
+                    print("use first selected gaussian mask wrapper")
+                else:
+                    mask_wrapper = cls._gaussian_mask_wrappers[0]
+                    print("use first gaussian mask wrapper by default")
+
+                cls._gm.cache()
+
+                result = cls._gm.render(camera, convert_to_pil=True)
+                result.save("./_debug_gt.png")
+
+                cls._gm.paint_by_mask(mask_wrapper.mask)
+
+                result = cls._gm.render(camera, convert_to_rgb_arr=True)
+                print(result.shape)
+                red_channel = result[:, :, 0]
+                # 设置阈值，大于0.5的设为255（白色），小于等于0.5的设为0（黑色）
+                _, cls._bw_threshold = imgui.slider_float("threshold for bw", cls._bw_threshold, 0.0, 1.0)
+
+                bw_image = np.where(red_channel / 255 > cls._bw_threshold, 255, 0)
+                from PIL import Image
+                # 创建新的 PIL 图像并保存
+                output_image = Image.fromarray(bw_image.astype(np.uint8))
+                output_image.save("./_bw_mask.png")
+
+                cls._gm.restore()
+            if imgui.button("repaint test (raw)"):
+                """
+                使用原始方法测试
+                """
+                from RePaint.repaint_manager import RepaintManager
+                cls._rm = RepaintManager()
+                cls._rm.raw_run()
+
+            if imgui.button("repaint test (sample)"):
+                from RePaint.repaint_manager import RepaintManager
+                cls._rm = RepaintManager()
+                cls._rm.prepare_work()
+                dl = cls._rm.dl
+                print("getting batch")
+                batch = next(iter(dl))
+                gt = batch['GT']
+                gt_keep_mask = batch.get('gt_keep_mask')
+
+                cls._rm.run(gt, gt_keep_mask)
+
+
+
+
+        except Exception as e:
+            traceback.print_exc()
+
     # endregion
 
     # region config args
@@ -537,7 +672,6 @@ class FullPage(BasePage):
     _is_fixing_scene = False
     _is_fix_scene_complete_in_frame = False  # 在这帧内结束了线程
     _fix_scene_output_msg = []
-    _fix_scene_progress = 0
 
     @classmethod
     def _fix_scene(cls):
@@ -545,24 +679,21 @@ class FullPage(BasePage):
         # 创建scene info
         if cls._args is None:
             cls._args = arg_utils.gen_config_args()
-        pu.create_contex('_fix_scene', cls._update_fix_scene_progress)
-        pu.new_progress(3)
+        pu.p_create_contex("fix_scene")
+        pu.p_new_progress("fix_scene", 3)
         cls._fix_scene_output_msg = []
         cls._is_fixing_scene = True
 
         with io_utils.OutputCapture(cls._fix_scene_output_msg):
             print(f'loading scene manager')
-            pu.update(1)
+            pu.p_update("fix_scene", 1)
             from src.manager.scene_manager import load_and_fix_scene
-            pu.update(1)
+            pu.p_update("fix_scene", 1)
             cls._scene_manager = load_and_fix_scene(cls._args)
-            pu.update(1)
+            pu.p_update("fix_scene", 1)
         cls._is_fixing_scene = False
         cls._is_fix_scene_complete_in_frame = True
 
-    @classmethod
-    def _update_fix_scene_progress(cls, value):
-        cls._fix_scene_progress = value / pu.get_total()
 
     # endregion
 
@@ -571,29 +702,26 @@ class FullPage(BasePage):
     _cm: Optional['CameraManager'] = None
     _is_loading_camera: bool = False
     _is_camera_manager_changed_in_frame: bool = False
-    _load_camera_progress: float = 0.0
 
     @classmethod
     def _load_cameras(cls):
         # in thread
         assert cls._scene_manager is not None
         assert cls._args is not None
-        from src.manager.camera_manager import CameraManager
-        pu.create_contex('cameraList_from_camInfos', cls._update_load_camera_progress)
         cls._is_loading_camera = True
+        from src.manager.camera_manager import CameraManager
+        pu.p_create_contex("load_camera", "Loading Camera Infos")
         cls._cm = CameraManager()
         cls._cm.create_cameras(cls._args, cls._scene_manager.scene_info)
         cls._is_loading_camera = False
         cls._is_camera_manager_changed_in_frame = True
 
-    @classmethod
-    def _update_load_camera_progress(cls, value):
-        cls._load_camera_progress = value / pu.get_total()
 
     # endregion
 
     # region create gaussian
-    _gm = None
+
+    _gm: Optional["GaussianManager"] = None
     _is_creating_gaussian = False
     _is_gaussian_changed_in_frame = False
 
@@ -706,12 +834,55 @@ class FullPage(BasePage):
     def _clear_post_socket(cls):
         cls._post_socket = None
 
+    _is_generating_gt_socket = False
+    _enable_gt_socket = True
+    _gt_socket = None
+
+    @classmethod
+    def _show_gt_socket_editor(cls):
+        changed, cls._enable_gt_socket = imgui.checkbox('Enable Ground Truth Socket', cls._enable_gt_socket)
+        if changed:
+            if not cls._enable_gt_socket and cls._gt_socket is not None:
+                cls._gt_socket = None
+        if not cls._enable_gt_socket:
+            return
+
+        any_change = False
+        if not cls._is_generating_gt_socket:
+            if cls._gt_socket is None or any_change:
+                cls._is_generating_gt_socket = True
+                threading.Thread(target=cls._gen_and_use_gt_socket()).start()
+        else:
+            # is generating
+            imgui.text('generating gt socket...')
+
+    @classmethod
+    def _gen_and_use_gt_socket(cls):
+        cls._gt_socket = cls._gen_gt_socket()
+
+    @classmethod
+    def _gen_gt_socket(cls):
+        cls._is_generating_gt_socket = True
+        import torch
+        def gt_socket(**kwargs):
+            viewpoint_cam = kwargs['viewpoint_cam']
+            image = viewpoint_cam.original_image.cuda()
+            iteration = kwargs['iteration']
+            # print(f"iter {iteration}: image shape = {image.shape}, image_type = {type(image)}")
+            # 将彩色图像转换为灰度图像
+            with torch.no_grad():
+                gray_img = torch.mean(image, dim=0, keepdim=True)  # 求取每个像素的 RGB 通道平均值，得到灰度图像
+                gray_img = torch.cat([gray_img, gray_img, gray_img], dim=0)
+            return gray_img
+
+        cls._is_generating_gt_socket = False
+        return gt_socket
+
     # endregion
 
     # region train
     _is_training_gaussian = False
     _train_gaussian_output_msg = []
-    _train_progress = 0
     _default_cmd_dict = {"force_stop": 0,
                          "stop_and_save": 0
                          }
@@ -723,19 +894,17 @@ class FullPage(BasePage):
         assert cls._gm is not None
         assert cls._cm is not None
         assert cls._scene_manager is not None
-        pu.create_contex('train', cls._update_train_progress)
+        pu.p_create_contex("train_gaussian", "Train Gaussian")
         cls._cmd_dict = cls._default_cmd_dict.copy()
         cls._is_training_gaussian = True
         with io_utils.OutputCapture(cls._train_gaussian_output_msg):
             from manager.train_manager import train, init_output_folder
             init_output_folder(cls._args, cls._scene_manager.scene_info)
         train(cls._args, cls._scene_manager.scene_info, cls._gm.gaussians, cls._cm.train_cameras,
-              post_socket=cls._post_socket, cmd_dict=cls._cmd_dict)
+              gt_socket=cls._gt_socket,
+              post_socket=cls._post_socket,
+              cmd_dict=cls._cmd_dict)
         cls._is_training_gaussian = False
-
-    @classmethod
-    def _update_train_progress(cls, value):
-        cls._train_progress = value / pu.get_total()
 
     # endregion
 
@@ -817,41 +986,42 @@ class FullPage(BasePage):
 
     @classmethod
     def create_mask_boundary_debug_bbox(cls):
-        from gui.graphic.geometry import WiredBoundingBox
-        # region calculate bounds when there is no data in project manager.project_data
-        bbox_min = pm.curr_project.get_project_data(pd.MASK_BOUNDARY_DEBUG_BBOX_MIN, None)
-        bbox_max = pm.curr_project.get_project_data(pd.MASK_BOUNDARY_DEBUG_BBOX_MAX, None)
-        # endregion
-        # region calculate bbox if no bbox data in project data
-        if bbox_min is None or bbox_max is None:
-            bounds: list[tuple] = []
-            need_warning = False
-            for i, gaussian_point_cloud in enumerate(cls.ViewerContentClass.mRenderer.gaussian_collection.geometries):
-                gaussian_point_cloud: "GaussianPointCloud" = gaussian_point_cloud
-                if gaussian_point_cloud.debug_bbox is not None:
-                    bounds.append(gaussian_point_cloud.debug_bbox.bound_min)
-                    bounds.append(gaussian_point_cloud.debug_bbox.bound_max)
-                    if sum(gaussian_point_cloud.transition) != 0:
-                        need_warning |= True
-            bounds_arr = np.array(bounds)
-            # 计算边界框的最小值和最大值
-            bbox_min = np.min(bounds_arr, axis=0)
-            bbox_max = np.max(bounds_arr, axis=0)
-            if need_warning:
-                cls._mask_boundary_warning_msg = "one or more Gaussian point cloud bounding boxes has been detected to be not at the origin, \n" \
-                                                 "which may lead to errors when calculating the bounding boxes of all Gaussians. \n" \
-                                                 "Please ensure that the translation of all Gaussians is at the origin."
-            else:
-                cls._mask_boundary_warning_msg = ''
-        # endregion
-        cls._mask_boundary_debug_bbox = WiredBoundingBox("_random_mask_boundary_bbox", bbox_min, bbox_max)
+        raise NotImplementedError
+        # from gui.graphic.geometry import WiredBoundingBox
+        # # region calculate bounds when there is no data in project manager.project_data
+        # bbox_min = pm.curr_project.get_project_data(pd.MASK_BOUNDARY_DEBUG_BBOX_MIN, None)
+        # bbox_max = pm.curr_project.get_project_data(pd.MASK_BOUNDARY_DEBUG_BBOX_MAX, None)
+        # # endregion
+        # # region calculate bbox if no bbox data in project data
+        # if bbox_min is None or bbox_max is None:
+        #     bounds: list[tuple] = []
+        #     need_warning = False
+        #     for i, gm in enumerate(cls.ViewerContentClass.mRenderer.gaussian_collection.gaussian_managers):
+        #         gm: "GaussianManager" = gm
+        #         if gaussian_point_cloud.debug_bbox is not None:
+        #             bounds.append(gaussian_point_cloud.debug_bbox.bound_min)
+        #             bounds.append(gaussian_point_cloud.debug_bbox.bound_max)
+        #             if sum(gaussian_point_cloud.transition) != 0:
+        #                 need_warning |= True
+        #     bounds_arr = np.array(bounds)
+        #     # 计算边界框的最小值和最大值
+        #     bbox_min = np.min(bounds_arr, axis=0)
+        #     bbox_max = np.max(bounds_arr, axis=0)
+        #     if need_warning:
+        #         cls._mask_boundary_warning_msg = "one or more Gaussian point cloud bounding boxes has been detected to be not at the origin, \n" \
+        #                                          "which may lead to errors when calculating the bounding boxes of all Gaussians. \n" \
+        #                                          "Please ensure that the translation of all Gaussians is at the origin."
+        #     else:
+        #         cls._mask_boundary_warning_msg = ''
+        # # endregion
+        # cls._mask_boundary_debug_bbox = WiredBoundingBox("_random_mask_boundary_bbox", bbox_min, bbox_max)
 
     @classmethod
     def create_mask_ground_debug_cube(cls):
         cls._ground_height = pm.curr_project.get_project_data(pd.GROUND_HEIGHT, cls._ground_height)
 
         from gui.graphic.geometry import SimpleCube
-        cls._mask_ground_debug_cube = SimpleCube("_mask_ground_debug_cube", (10, 10, 0.01), (0.5, 0.5, 0.5, 0.5))
+        cls._mask_ground_debug_cube = SimpleCube("_mask_ground_debug_cube", size=(10, 10, 0.01), )
         cls._mask_ground_debug_cube.translation = (0, 0, cls._ground_height)
 
     @classmethod
@@ -864,8 +1034,6 @@ class FullPage(BasePage):
     @classmethod
     def create_dataset(cls):
         from PIL import Image
-        if not cls.ViewerContentClass.has_gaussian_renderer():
-            return
         mRenderer = cls.ViewerContentClass.mRenderer
         opt = cls._dataset_creation_settings
         # region 保存初始参数
@@ -910,7 +1078,7 @@ class FullPage(BasePage):
 
         mRenderer.update_size(512, 512)
         mRenderer.debug_render_time_gap = 0  # instant render mode
-        yield None
+        yield None  # need yield to ensure renderer settings applied
         # endregion
 
         # region 生成n个mask
@@ -959,15 +1127,15 @@ class FullPage(BasePage):
             # endregion
 
             # region render masks
-            for gaussian_geo in mRenderer.gaussian_collection.geometries:
-                mask_wrapper = GaussianMaskWrapper(f"mask_{i}", gaussian_geo.gm, cls._tmp_geo_as_mask)
+            for gm in mRenderer.gaussian_collection.gaussian_managers:
+                mask_wrapper = GaussianMaskWrapper(f"mask_{i}", gm, cls._tmp_geo_as_mask)
                 success, msg = mask_wrapper.create_mask_by_parent()
                 if not success:
                     print(msg)
                     continue
                 mask = mask_wrapper.mask
-                gaussian_geo.gm.cache()
-                gaussian_geo.gm.paint_by_mask(mask)
+                gm.cache()
+                gm.paint_by_mask(mask)
             mRenderer.render_gaussians = True
             mRenderer.render_geometries = False
             mRenderer.render_debug_geometries = False
@@ -989,8 +1157,8 @@ class FullPage(BasePage):
                     break
                 except Exception as e:
                     print(e)
-            for gaussian_geo in mRenderer.gaussian_collection.geometries:
-                gaussian_geo.gm.restore()
+            for gm in mRenderer.gaussian_collection.gaussian_managers:
+                gm.restore()
             # endregion
 
             # create pix2pix datasets

@@ -1,9 +1,49 @@
 {
+    "fullscreen": false,
+    "window_size": [
+        2121,
+        1117
+    ],
     "layout_level3_left_width": 400,
     "recent_project_names": [
-        "Google Earth Template"
+        "Template Project",
+        "testProject",
+        "Google Earth Template",
+        "DiaoYuTai1"
     ],
     "recent_project_paths": [
-        "G:/@M.Arch/Master/arch_gaussian_projects/GoogleEarthTemplate"
-    ]
+        "G:/@M.Arch/Master/arch_gaussian_projects/GoogleEarthTemplate",
+        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/TemplateProject",
+        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/testProject",
+        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/GoogleEarthTemplate",
+        "D:/M.Arch/MastersThesis/ArchGaussian-Project/shared/projects/DiaoYuTai1"
+    ],
+    "can_show_debug_info": false,
+    "can_print_key_events": false,
+    "can_show_help_info": true,
+    "can_show_scene_grid": false,
+    "can_show_scene_axis": true,
+    "can_show_skybox": true,
+    "can_render_geometry": true,
+    "can_render_debug_geometry": true,
+    "can_render_gaussian": true,
+    "renderer_max_frame_rate": 60,
+    "renderer_point_size": 9.855999946594238,
+    "renderer_downsample": 1,
+    "program_demands": {
+        "programs/chart.glsl": 5,
+        "programs/ui_blur.glsl": 14,
+        "programs/shadertoy/atmospheric_scattering_skybox.glsl": 2,
+        "programs/rounded_button.glsl": 50,
+        "programs/progress_bar.glsl": 1,
+        "programs/line_rgba.glsl": 8,
+        "programs/grid_line.glsl": 4,
+        "programs/point_cloud_rgba.glsl": 2,
+        "programs/cube_simple.glsl": 3,
+        "programs/gaussian_color.glsl": 1,
+        "programs/gaussian_blender.glsl": 1,
+        "programs/one_shader/gradients.glsl": 1,
+        "programs/one_shader/planar_light_tunnel.glsl": 1,
+        "programs/lit_simple.glsl": 1
+    }
 }

@@ -1,38 +1,50 @@
-import uuid
+import datetime
+import logging
+import queue
 from abc import abstractmethod
 from typing import Union, Optional
 
 import imgui
 import numpy as np
+import torch
+from pyrr import Vector3
 
-from gui import components as c
-from gui import global_var as g
 from gui.graphic import geometry
 from gui.graphic.geometry import BaseGeometry, BaseGeometry3D
 from gui.modules import EventModule
-from gui.utils import name_utils
+from gui.utils import name_utils, transform_utils
 
 SUPPORTED_GEO_TYPES = Union[BaseGeometry, BaseGeometry3D]
 
+__runtime__ = True
+if not __runtime__:
+    from src.manager.gaussian_manager import GaussianManager
+    from gui.graphic.renderers import IRenderer
+    from gui.graphic.geometry import DirectionalLight
 
-class GeometryCollection:
+class UniqueQueue(queue.Queue):
+    def _put(self, item):
+        if item not in self.queue:
+            queue.Queue._put(self, item)
 
-    def __init__(self, name, camera):
+
+class IGeometryCollection:
+
+    def __init__(self, name, renderer: "IRenderer"):
         self.name = name
-        self.camera = camera
+        self.parent_renderer = renderer
+        self.camera = renderer.camera
         self.geometries: list[SUPPORTED_GEO_TYPES] = []
 
+        self._geometry_on_enable_queue: UniqueQueue[SUPPORTED_GEO_TYPES] = UniqueQueue()
+        self._geometry_on_disable_queue: UniqueQueue[SUPPORTED_GEO_TYPES] = UniqueQueue()
+
     def add_geometry(self, geo):
+        if geo in self.geometries:
+            return
         self.geometries.append(geo)
+        self._geometry_on_enable_queue.put(geo)
         return geo
-
-    def add_geometries(self, *geometries):
-        for geo in geometries:
-            self.add_geometry(geo)
-        return geometries
-
-    def clear(self):
-        self.geometries.clear()
 
     def remove_geometry(self, geo):
         if geo is None:
@@ -40,13 +52,34 @@ class GeometryCollection:
         if geo not in self.geometries:
             return
         self.geometries.remove(geo)
+        self._geometry_on_disable_queue.put(geo)
         return geo
+
+    def clear(self):
+        for geo in self.geometries:
+            self._geometry_on_disable_queue.put(geo)
+        self.geometries.clear()
+
+    def update(self):
+        while not self._geometry_on_disable_queue.empty():
+            geo = self._geometry_on_disable_queue.get()
+            geo.g_on_disable()
+        while not self._geometry_on_enable_queue.empty():
+            geo = self._geometry_on_enable_queue.get()
+            geo.g_on_enable()
+        for geo in self.geometries:
+            geo.g_update()
 
     def render(self):
         for geo in self.geometries:
             if geo.active:
                 geo.render(self.camera)
 
+    def render_shadowmap(self, dlight: "DirectionalLight"):
+        for geo in self.geometries:
+            if geo.active:
+                geo.render_shadowmap(dlight)
+
     @abstractmethod
     def operation_panel(self):
         pass
@@ -56,193 +89,229 @@ class GeometryCollection:
         pass
 
 
-class PointCloudCollection(GeometryCollection):
+class SceneBasicCollection(IGeometryCollection):
+    """场景的基础信息"""
 
-    def __init__(self, name, camera, pos_arr=None, color_arr=None):
-        super().__init__(name, camera)
+    def __init__(self, name, renderer: "IRenderer"):
+        super().__init__(name, renderer)
+        # region geometries
+        # opaque
+        self.skybox: geometry.SkyBox = self.add_geometry(geometry.SkyBox())
+        self.directional_light: geometry.DirectionalLight = self.add_geometry(geometry.DirectionalLight())
+        self.axis: geometry.Axis3D = self.add_geometry(geometry.Axis3D())
+
+        # translucent
+        self.grid: geometry.Grid3D = self.add_geometry(geometry.Grid3D())
+
+        # endregion
+
+        from gui.user_data import user_data
+        self.set_axis_status(user_data.can_show_scene_axis)
+        self.set_grid_status(user_data.can_show_scene_grid)
+        self.set_skybox_status(user_data.can_show_skybox)
+
+        # region time and shadow
+        self.scene_time = SceneTime()
+        # endregion
+
+    def operation_panel(self):
+        if imgui.tree_node("Scene Time Settings"):
+            self.scene_time.operation_panel()
+            imgui.tree_pop()
+        if imgui.tree_node("Skybox Settings"):
+            self.skybox.operation_panel()
+            imgui.tree_pop()
+        if imgui.tree_node("Directional Light Settings"):
+            self.directional_light.operation_panel()
+            imgui.tree_pop()
+
+    def show_debug_info(self):
+        pass
+
+    def set_axis_status(self, state: bool):
+        self.axis.active = state
+
+    def set_grid_status(self, state: bool):
+        self.grid.active = state
+
+    def set_skybox_status(self, state: bool):
+        self.skybox.active = state
+
+
+class SceneTime:
+    def __init__(self):
+        now = datetime.datetime.now()
+        self.lat = 33.0
+        self.lon = 120.0
+        self.year = now.year
+        self.month = 1
+        self.day = 1
+        self.hour = 12
+        self.minute = 0
+        self.second = 0
+
+        self.light_dir: Vector3 = Vector3((0, 0, 1), dtype="f4")
+
+        self._imgui_year_slider_value = 0.5
+        self._imgui_day_slider_value = 0.5
+        self.set_time_by_slider()
+
+    def set_time(self, lat, lon, year, month, day, hour, minute, second):
+        self.lat = lat
+        self.lon = lon
+        self.year = year
+        self.month = month
+        self.day = day
+        self.hour = hour
+        self.minute = minute
+        self.second = second
+
+        self._imgui_day_slider_value = (hour * 3600 + minute * 60 + second) / 86399.0
+        self._imgui_year_slider_value = (datetime.date(year, month, day) - datetime.date(year, 1, 1)).days / (365.0 if not year % 4 == 0 or (year % 100 == 0 and year % 400 != 0) else 366.0)
+        self.light_dir = transform_utils.get_sun_dir(self.lat, self.lon, self.year, self.month, self.day, self.hour, self.minute, self.second)
+        EventModule.on_scene_time_change(self)
+
+    def set_time_by_slider(self):
+        year = self.year
+        day_of_year = int(self._imgui_year_slider_value * (365.0 if not year % 4 == 0 or (year % 100 == 0 and year % 400 != 0) else 366.0))
+        start_of_year = datetime.date(year, 1, 1)
+        required_date = start_of_year + datetime.timedelta(days=day_of_year - 1)
+        self.month = required_date.month
+        self.day = required_date.day
+
+        seconds = int(self._imgui_day_slider_value * 86399)
+        self.hour = int(seconds // 3600)
+        seconds -= self.hour * 3600
+        self.minute = int(seconds // 60)
+        seconds -= self.minute * 60
+        self.second = seconds
+        EventModule.on_scene_time_change(self)
+        self.light_dir = transform_utils.get_sun_dir(self.lat, self.lon, self.year, self.month, self.day, self.hour, self.minute, self.second)
+        EventModule.on_scene_time_change(self)
+
+    def operation_panel(self):
+        imgui.text("Set Time: ")
+
+        any_change = False
+        changed, lat = imgui.drag_float("lat", self.lat, 0.1, -90, 90)
+        any_change |= changed
+        changed, lon = imgui.drag_float("lon", self.lon, 0.1, -180, 180)
+        any_change |= changed
+        changed, year = imgui.drag_int("year", self.year, 1, 0, 5000)
+        any_change |= changed
+        changed, month = imgui.drag_int("month", self.month, 1, 1, 12)
+        any_change |= changed
+        changed, day = imgui.drag_int("day", self.day, 1, 1, 31)
+        any_change |= changed
+        changed, hour = imgui.drag_int("hour", self.hour, 1, 0, 23)
+        any_change |= changed
+        changed, minute = imgui.drag_int("minute", self.minute, 1, 0, 59)
+        any_change |= changed
+        changed, second = imgui.drag_int("second", self.second, 1, 0, 59)
+        any_change |= changed
+
+        if any_change:
+            self.set_time(lat, lon, year, month, day, hour, minute, second)
+
+        changed1, self._imgui_year_slider_value = imgui.slider_float("date slider", self._imgui_year_slider_value, 0.0, 1.0)
+        changed2, self._imgui_day_slider_value = imgui.slider_float("time slider", self._imgui_day_slider_value, 0.0, 1.0)
+        if changed1 or changed2:
+            self.set_time_by_slider()
+
+
+class PointCloudCollection(IGeometryCollection):
+    """一个简单的点云Geometry Collection"""
+
+    def __init__(self, name, renderer: "IRenderer", pos_arr=None, color_arr=None):
+        super().__init__(name, renderer)
 
         if pos_arr is None or color_arr is None:
             num = 100
             pos_arr = np.random.rand(num, 3).astype(np.float32)
             color_arr = np.random.rand(num, 4).astype(np.float32)
 
-        self._debug_num_points = -1
-        self.point_cloud: Optional[geometry.PointCloud] = None
+        self.num_points = -1
 
+        self.point_cloud: Optional[geometry.PointCloud] = None
         self.set_points_cloud(pos_arr, color_arr)
-        self.axis3d = self.add_geometry(geometry.Axis3D())
+
+        # UI
+        from gui.graphic.geometry_collection_ui import PointCloudCollectionUI
+        self.ui = PointCloudCollectionUI(self)
 
     def set_points_cloud(self, pos_arr, color_arr):
         pos_arr = pos_arr.astype(np.float32)
         color_arr = color_arr.astype(np.float32)
         self.remove_geometry(self.point_cloud)
         self.point_cloud = self.add_geometry(geometry.PointCloud('point_cloud', pos_arr, color_arr))
-        self._debug_num_points = len(pos_arr)
+        self.num_points = len(pos_arr)
+
+    def delete_self(self):
+        self.__init__(self.name, self.camera, None, None)
 
     def operation_panel(self):
-        imgui.text('nothing to show for PointCloudCollection')
+        self.ui.operation_panel()
 
     def show_debug_info(self):
-        c.bold_text(f'[{self.__class__.__name__}]')
-        imgui.same_line()
-        imgui.text(f'num_points: {self._debug_num_points}')
+        self.ui.show_debug_info()
 
 
-class GaussianCollection(GeometryCollection):
-    def __init__(self, name, camera, debug_collection=None):
-        """
-        GaussianPointCloud的集合
+class GaussianCollection(IGeometryCollection):
 
-        可以附带指定一个debug_collection， 用于显示debug图形信息
-        """
-        super().__init__(name, camera)
+    def __init__(self, name, renderer: "IRenderer"):
 
-        import torch
-        self.torch = torch
-        from gui.windows import GaussianInspectorWindow
-        self.InspectorWindow = GaussianInspectorWindow
-        from src.manager.gaussian_manager import GaussianManager
+        super().__init__(name, renderer)
 
-        self.final_gm: Optional[GaussianManager] = None
-        """当Collection中有多个GaussianPointCloud时， 合并后的最终GaussianPointCloud"""
+        # do not use geometries in GaussianCollection, use self.gaussian_managers instead
+        self.gaussian_managers: list["GaussianManager"] = []
 
-        self.InspectorWindow.register_w_close_event(self._clear_imgui_curr_selected_geo_idx)
+        self.final_gm: Optional["GaussianManager"] = None
 
-        self.geometries: list[geometry.GaussianPointCloud] = []  # 指定类型用
-        self.debug_collection: Optional[DebugCollection] = debug_collection
+        # import ui
+        from gui.graphic.geometry_collection_ui import GaussianCollectionUI
+        self.ui = GaussianCollectionUI(self)
 
-        self._imgui_curr_selected_geo_idx = -1
-        EventModule.register_get_depth_callback(self.on_get_depth)
-
-    def set_gaussian_manager(self, gm):
-        """
-        清空场景中的所有geometries(Gaussian Point Cloud)，
-        并由该gm(Gaussian Manager)创建一个新的Gaussian Point Cloud， 添加到场景中。
-
-        如果gm为None， 则清空场景的geometries
-
-        该方法由上层的GaussianRenderer.set_gaussian_manager(gm)调用
-        """
-        self.geometries = []
+    def set_gaussian_manager(self, gm: "GaussianManager"):
+        self.gaussian_managers = []
         if gm is not None:
             self.add_gaussian_manager(gm)
         self.merge_gaussians()
 
-    def add_gaussian_manager(self, gm):
-        """向场景中添加一个新的Gaussian Point Cloud， 其包裹传入的gm(Gaussian Manager)"""
-        if gm is None:
-            return
+    def add_gaussian_manager(self, gm: "GaussianManager"):
+        assert gm is not None
         name = name_utils.ply_path_to_model_name(gm.source_ply_path)
-        if name == '':
-            name_idx = name_utils.get_next_name_idx([geo.name for geo in self.geometries])
-            name = f"gaussian_{name_idx}"
-        else:
-            name_idx = name_utils.get_next_name_idx([geo.name for geo in self.geometries if geo.name.startswith(name)])
-            name = f"{name}_{name_idx}" if name_idx > 0 else name
-        gs_pt_cloud = geometry.GaussianPointCloud(
-            name=name, gaussian_manager=gm, debug_collection=self.debug_collection
-        )
-        gs_pt_cloud.generate_gaussian_points()
-        self.add_geometry(gs_pt_cloud)
-        return gs_pt_cloud
+        self.gaussian_managers.append(gm)
+
+    def remove_gaussian_manager(self, gm: "GaussianManager"):
+        assert gm is not None
+        if gm in self.gaussian_managers:
+            self.gaussian_managers.remove(gm)
 
     def merge_gaussians(self):
         from src.manager.gaussian_manager import GaussianManager
-        self.final_gm = GaussianManager.merge_gaussian_managers([geo.gm for geo in self.geometries])
+        self.final_gm = GaussianManager.merge_gaussian_managers(self.gaussian_managers)
 
-    def render_gaussian(self) -> Optional[np.ndarray]:
-        """使用3dgs提供的接口渲染画面， 返回图像array"""
+    def render_gaussian(self, opaque_depth: torch.Tensor) -> Optional[torch.Tensor]:
         if self.final_gm is None:
             return None
-        return self.final_gm.render(self.camera, convert_to_rgba_arr=True)
+        return self.final_gm.render_fork(camera=self.camera, opaque_depth=opaque_depth)
 
     def render(self):
-        """常规渲染方法，使用opengl渲染点云（主要用作深度测试）"""
         super().render()
-
-    def on_get_depth(self, *args, **kwargs):
-        _ = self
-        pass
-
-    def _clear_imgui_curr_selected_geo_idx(self):
-        self._imgui_curr_selected_geo_idx = -1
+        logging.error("you are rendering gaussian point clouds, to rasterize gaussians, use ~.render_gaussian method")
 
     def operation_panel(self):
-        self._operation_panel_buttons_region()
-        imgui.separator()
-        self._operation_panel_list_region()
-
-    def _operation_panel_buttons_region(self):
-        # region ADD BUTTON ===============================================================
-        gm = c.load_gaussian_from_custom_file_button(uid="load_gaussian_from_custom_file_button_in_gaussian_collection")
-        if gm is not None:
-            self.add_gaussian_manager(gm)
-            self.merge_gaussians()
-        imgui.same_line()
-        gm = c.load_gaussian_from_iteration_button(uid="load_gaussian_from_iteration_button_in_gaussian_collection")
-        if gm is not None:
-            self.add_gaussian_manager(gm)
-            self.merge_gaussians()
-        # endregion =======================================================================
-
-        # region MERGE BUTTON =============================================================
-        if c.icon_text_button('stack-fill', 'Merge Gaussian'):
-            self.merge_gaussians()
-        c.easy_tooltip('Merge Gaussian Manually')
-        # endregion =======================================================================
-
-    def _operation_panel_list_region(self):
-        # region GAUSSIANS LIST ===========================================================
-        # GUI -----------------------------------------------------------------------------
-        imgui.text('GAUSSIANS LIST')
-        c.begin_child(f'{self.name}_child', 0, 100 * g.GLOBAL_SCALE, border=True)
-        only_have_one_geo = len(self.geometries) == 1
-        for i, gs_pt_cloud in enumerate(self.geometries):
-            selected = i == self._imgui_curr_selected_geo_idx
-            opened, selected = imgui.selectable(gs_pt_cloud.name, selected)
-            if opened and selected:
-                print(f'opened and selected {i}')
-                self._imgui_curr_selected_geo_idx = i
-                self.InspectorWindow.register_content(gs_pt_cloud.operation_panel, is_the_only_geo=only_have_one_geo)
-        # 取消选择
-        if imgui.is_mouse_clicked(0) and imgui.is_window_hovered() and not imgui.is_any_item_hovered():
-            self._clear_imgui_curr_selected_geo_idx()
-            self.InspectorWindow.unregister_content()
-        imgui.end_child()
-        # END GUI -------------------------------------------------------------------------
-        # LOGICS --------------------------------------------------------------------------
-        results = self.InspectorWindow.get_results()
-        if results:
-            changed, delete_self = results
-        else:
-            changed, delete_self = False, False
-        # delete
-        if delete_self:
-            self.remove_geometry(self.geometries[self._imgui_curr_selected_geo_idx])
-            self.InspectorWindow.w_close()
-        # merge
-        if changed:
-            self.merge_gaussians()
-        # END LOGICS ----------------------------------------------------------------------
-        # endregion =======================================================================
+        self.ui.operation_panel()
 
     def show_debug_info(self):
-        c.bold_text(f'[{self.__class__.__name__}]')
-        imgui.same_line()
-        imgui.text(f'final_gm: {self.final_gm is not None}')
-        imgui.same_line()
-        if imgui.button('show operation_panel'):
-            imgui.open_popup('op_panel')
-        if imgui.begin_popup('op_panel'):
-            self.operation_panel()
-            imgui.end_popup()
+        self.ui.show_debug_info()
 
 
-class DebugCollection(GeometryCollection):
+class DebugCollection(IGeometryCollection):
     """用于显示各种debug物体, 这是一种特殊的collection， 其物体每帧刷新"""
 
-    def __init__(self, name, camera):
-        super().__init__(name, camera)
+    def __init__(self, name, renderer: "IRenderer"):
+        super().__init__(name, renderer)
 
     def draw_bbox(self, bbox, skip_examine=False):
         if not skip_examine:
@@ -274,88 +343,20 @@ class DebugCollection(GeometryCollection):
         pass
 
 
-class MyCustomGeometryCollection(GeometryCollection):
-    def __init__(self, name, camera):
-        super().__init__(name, camera)
-        from gui.windows import GeometryInspectorWindow
-        self.InspectorWindow = GeometryInspectorWindow
-        self.InspectorWindow.register_w_close_event(self._clear_imgui_curr_selected_geo_idx)
+class EditableGeometryCollection(IGeometryCollection):
+    """
+    可编辑的Geometry Collection， 提供编辑方法
+    """
 
-        self._imgui_curr_selected_geo_idx = -1
+    def __init__(self, name, renderer: "IRenderer"):
+        super().__init__(name, renderer)
 
-    def _clear_imgui_curr_selected_geo_idx(self):
-        self._imgui_curr_selected_geo_idx = -1
+        # UI
+        from gui.graphic.geometry_collection_ui import EditableGeometryCollectionUI
+        self.ui = EditableGeometryCollectionUI(self)
 
     def operation_panel(self):
-        changed = False
-        c.bold_text(f'[GEOMETRY COLLECTION SETTINGS]')
-        # region ADD BUTTON ===============================================================
-        if c.icon_text_button('file-add-fill', 'Add Geo', uid="MCGCOP_Add_Geo"):
-            imgui.open_popup("MCGCOP_add_geo_popup")
-        if imgui.begin_popup("MCGCOP_add_geo_popup"):
-            if imgui.menu_item("add cube simple")[0]:
-                all_cube_names = [geo.name for geo in self.geometries if geo.name.startswith('cube')]
-                geo_name = f"cube_{name_utils.get_next_name_idx(all_cube_names)}"
-                self.add_geometry(geometry.SimpleCube(geo_name))
-            if imgui.menu_item("add wired box")[0]:
-                all_wired_box_names = [geo.name for geo in self.geometries if geo.name.startswith('wired_box')]
-                geo_name = f"wired_box_{name_utils.get_next_name_idx(all_wired_box_names)}"
-                self.add_geometry(geometry.WiredBoundingBox(geo_name, (-1, -1, -1), (1, 1, 1)))
-            if imgui.menu_item("add polygon 3d")[0]:
-                all_polygon_names = [geo.name for geo in self.geometries if geo.name.startswith('polygon3d')]
-                geo_name = f"polygon3d_{name_utils.get_next_name_idx(all_polygon_names)}"
-                self.add_geometry(
-                    geometry.Polygon3D(geo_name,
-                                       np.array([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)]),
-                                       -10, 10))
-            if imgui.menu_item("add polygon 2d")[0]:
-                all_polygon_names = [geo.name for geo in self.geometries if geo.name.startswith('polygon2d')]
-                geo_name = f"polygon2d_{name_utils.get_next_name_idx(all_polygon_names)}"
-                self.add_geometry(
-                    geometry.Polygon(geo_name,
-                                       np.array([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)])))
-            imgui.end_popup()
-        # endregion =======================================================================
-        # region other buttons
-        imgui.same_line()
-        if c.icon_text_button('file-add-fill', 'More...', uid="MCGCOP_Add_Geo"):
-            imgui.open_popup("MCGCOP_more_popup")
-        if imgui.begin_popup("MCGCOP_more_popup"):
-            imgui.checkbox("test check box", True)
-            imgui.end_popup()
-
-        # endregion
-
-        # region GEO LIST ===========================================================
-        # GUI -----------------------------------------------------------------------------
-        imgui.text('GEOMETRY LIST')
-        c.begin_child(f'{self.name}_child', 0, 200 * g.GLOBAL_SCALE, border=True)
-
-        for i, geo in enumerate(self.geometries):
-            selected = i == self._imgui_curr_selected_geo_idx
-            opened, selected = imgui.selectable(geo.name, selected)
-            if opened and selected:
-                self._imgui_curr_selected_geo_idx = i
-                self.InspectorWindow.register_content(geo.operation_panel)
-        # 取消选择
-        if imgui.is_mouse_clicked(0) and imgui.is_window_hovered() and not imgui.is_any_item_hovered():
-            self._clear_imgui_curr_selected_geo_idx()
-            self.InspectorWindow.unregister_content()
-        imgui.end_child()
-        # END GUI -------------------------------------------------------------------------
-        # LOGICS --------------------------------------------------------------------------
-        results = self.InspectorWindow.get_results()
-        if results:
-            changed, delete_self = results
-        else:
-            changed = False
-            delete_self = False
-        # delete
-        if delete_self:
-            self.remove_geometry(self.geometries[self._imgui_curr_selected_geo_idx])
-            self.InspectorWindow.w_close()
-        # END LOGICS ----------------------------------------------------------------------
-        # endregion =======================================================================
+        self.ui.operation_panel()
 
     def show_debug_info(self):
-        pass
+        self.ui.show_debug_info()

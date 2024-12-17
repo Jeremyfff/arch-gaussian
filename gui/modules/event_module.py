@@ -2,6 +2,10 @@ from typing import Callable
 
 from gui.modules.base_module import BaseModule
 
+__runtime__ = True
+if not __runtime__:
+    from gui.graphic.geometry_collection import SceneTime
+
 
 class EventModule(BaseModule):
     # event callback set
@@ -15,6 +19,7 @@ class EventModule(BaseModule):
     _mouse_release_callbacks = set()
     _unicode_char_entered_callbacks = set()
     _files_dropped_callbacks = set()
+    _ready_to_close_callbacks = set()
 
     @classmethod
     def m_init(cls):
@@ -150,6 +155,19 @@ class EventModule(BaseModule):
         for func in cls._files_dropped_callbacks:
             func(x, y, paths)
 
+    @classmethod
+    def register_ready_to_close_callback(cls, func: Callable[[], None]):
+        cls._ready_to_close_callbacks.add(func)
+
+    @classmethod
+    def unregister_ready_to_close_callback(cls, func):
+        cls._ready_to_close_callbacks.remove(func)
+
+    @classmethod
+    def ready_to_close(cls):
+        for func in cls._ready_to_close_callbacks:
+            func()
+
     _nav_idx_change_callbacks = set()
 
     @classmethod
@@ -240,3 +258,81 @@ class EventModule(BaseModule):
     def on_project_change(cls):
         for func in cls._project_changed_callbacks:
             func()
+
+    _progress_ctx_callbacks = set()
+
+    @classmethod
+    def register_progress_ctx_change_callback(cls, func: Callable):
+        cls._progress_ctx_callbacks.add(func)
+
+    @classmethod
+    def unregister_progress_ctx_change_callback(cls, func: Callable):
+        cls._progress_ctx_callbacks.remove(func)
+
+    @classmethod
+    def on_progress_ctx_change(cls):
+        for func in cls._progress_ctx_callbacks:
+            func()
+
+    _bg_style_change_callbacks = set()
+
+    @classmethod
+    def register_bg_style_change_callback(cls, func: Callable):
+        cls._bg_style_change_callbacks.add(func)
+
+    @classmethod
+    def unregister_bg_style_change_callback(cls, func: Callable):
+        cls._bg_style_change_callbacks.remove(func)
+
+    @classmethod
+    def on_bg_style_change(cls):
+        for func in cls._bg_style_change_callbacks:
+            func()
+
+    _global_scale_change_callbacks = set()
+
+    @classmethod
+    def register_global_scale_change_callback(cls, func: Callable):
+        if func not in cls._global_scale_change_callbacks:
+            cls._global_scale_change_callbacks.add(func)
+
+    @classmethod
+    def unregister_global_scale_change_callback(cls, func: Callable):
+        if func in cls._global_scale_change_callbacks:
+            cls._global_scale_change_callbacks.remove(func)
+
+    @classmethod
+    def on_global_scale_change(cls):
+        for func in cls._global_scale_change_callbacks:
+            func()
+
+    _language_change_callbacks = set()
+
+    @classmethod
+    def register_language_change_callback(cls, func: Callable):
+        cls._language_change_callbacks.add(func)
+
+    @classmethod
+    def unregister_language_change_callback(cls, func: Callable):
+        cls._language_change_callbacks.remove(func)
+
+    @classmethod
+    def on_language_change(cls):
+        for func in cls._language_change_callbacks:
+            func()
+
+    _scene_time_change_callbacks = set()
+
+    @classmethod
+    def register_scene_time_change_callback(cls, func: Callable[["SceneTime"], None]):
+        cls._scene_time_change_callbacks.add(func)
+
+    @classmethod
+    def unregister_scene_time_change_callback(cls, func: Callable[["SceneTime"], None]):
+        cls._scene_time_change_callbacks.remove(func)
+
+    @classmethod
+    def on_scene_time_change(cls, scene_time: "SceneTime"):
+        for func in cls._scene_time_change_callbacks:
+            func(scene_time)
+

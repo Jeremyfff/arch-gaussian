@@ -1,7 +1,7 @@
 import imgui
 from ImNodeEditor import NE, Node
 
-from gui import global_var as g
+from gui.global_app_state import g
 from gui.contents.base_content import BaseContent
 from gui.modules import my_node_module
 

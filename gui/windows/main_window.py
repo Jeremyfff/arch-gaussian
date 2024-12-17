@@ -2,7 +2,7 @@ import logging
 
 import imgui
 
-import gui.global_var as g
+import gui.global_app_state as g
 from gui.contents import BlankContent
 from gui.contents import Edit3DGSContent
 from gui.contents import GUI_CONTENT_TYPES
@@ -11,6 +11,7 @@ from gui.contents import PrepareContent
 from gui.contents import Train3DGSContent
 from gui.contents import VerticalResizeHandleContent
 from gui.contents import ViewerContent
+from gui.contents import HierarchyContent
 from gui.modules import EventModule, LayoutModule, ShadowModule
 from gui.windows.base_window import BaseWindow
 
@@ -20,11 +21,13 @@ class MainWindow(BaseWindow):
     page0_content: tuple[GUI_CONTENT_TYPES] = (PrepareContent, VerticalResizeHandleContent, NodeEditorContent)
     page1_content: tuple[GUI_CONTENT_TYPES] = (Train3DGSContent, VerticalResizeHandleContent, ViewerContent)
     page2_content: tuple[GUI_CONTENT_TYPES] = (Edit3DGSContent, VerticalResizeHandleContent, ViewerContent)
+    page3_content: tuple[GUI_CONTENT_TYPES] = (HierarchyContent, VerticalResizeHandleContent, ViewerContent)
     pagen1_content: tuple[GUI_CONTENT_TYPES] = (BlankContent,)
     display_contents: dict[int:tuple[GUI_CONTENT_TYPES]] = {
         0: page0_content,
         1: page1_content,
         2: page2_content,
+        3: page3_content,
         -1: pagen1_content
     }
 
@@ -49,7 +52,7 @@ class MainWindow(BaseWindow):
         cls.update_pages(cls.display_contents[cls.curr_nav_idx])
 
     @classmethod
-    def w_show(cls):
+    def w_show(cls, **kwargs):
         super().w_show()
         with LayoutModule.LayoutWindow(cls.LAYOUT_NAME, 'main window'):
             cls.show_pages(cls.display_contents[cls.curr_nav_idx])
@@ -105,14 +108,7 @@ class MainWindow(BaseWindow):
         org_contents_to_hide = org_contents - new_contents
         new_contents_to_show = new_contents - org_contents
         for content in org_contents_to_hide:
-            try:
-                content.c_on_hide()
-            except Exception as e:
-                print(e)
+            content.c_on_hide()
         for content in new_contents_to_show:
-            try:
-                content.c_on_show()
-            except Exception as e:
-                print(e)
+            content.c_on_show()
         cls.curr_nav_idx = new_idx  # 本窗口的nav idx 由class的curr nav idx驱动， 而不由global var的mCurrNavIdx驱动
-        g.mCurrNavIdx = new_idx

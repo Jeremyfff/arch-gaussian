@@ -63,3 +63,8 @@ class DrawingModule(BaseModule):
     def draw_line(cls, start_x, start_y, end_x, end_y, col, thickness=1.0, draw_list_type: DrawListTypes = 'window'):
         draw_list = cls.get_draw_list(draw_list_type)
         draw_list.add_line(start_x, start_y, end_x, end_y, imgui.get_color_u32_rgba(*col), thickness)
+
+    @classmethod
+    def draw_text(cls, pos_x, pos_y, col, text, draw_list_type: DrawListTypes = 'window'):
+        draw_list = cls.get_draw_list(draw_list_type)
+        draw_list.add_text(pos_x, pos_y, imgui.get_color_u32_rgba(*col), text)

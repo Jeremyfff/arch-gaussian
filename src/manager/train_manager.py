@@ -10,7 +10,7 @@ from enum import Enum
 import torch
 from tqdm.auto import tqdm
 
-from gaussian_renderer import render
+from gaussian_renderer.default_renderer import render
 from manager.camera_manager import CameraManager
 from manager.gaussian_manager import GaussianManager
 from scripts import config
@@ -161,7 +161,8 @@ def init_output_folder(args, scene_info):
 
 
 def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socket=None, post_socket=None, cmd_dict={}):
-    from src.utils import progress_utils as pu
+    from gui.utils import progress_utils as pu
+    from gui.utils.progress_utils import ProgressState
     print("🚀Optimizing " + config.scene_name)
     lp, op, pp = parse_args(args)
     dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from = lp.extract(
@@ -196,7 +197,8 @@ def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socke
     viewpoint_stack = None
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
-    pu.new_progress(opt.iterations - first_iter)
+    pu.p_new_progress("train_gaussian", opt.iterations - first_iter)
+
     first_iter += 1
     for iteration in range(first_iter, opt.iterations + 1):
 
@@ -272,10 +274,10 @@ def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socke
             if iteration % 10 == 0:
                 progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
                 progress_bar.update(10)
-                pu.update(10)
+                pu.p_update("train_gaussian", 10)
             if iteration == opt.iterations:
                 progress_bar.close()
-                pu._curr = pu.get_total()
+                pu.p_set_state("train_gaussian", ProgressState.Complete)
             # Log and save
             # training_report(tb_writer, iteration, Ll1, loss, l1_loss,
             # iter_start.elapsed_time(iter_end),testing_iterations, scene, render, (pipe, background))
@@ -298,7 +300,8 @@ def train(args, scene_info, gaussians, train_cameras, gt_socket=None, loss_socke
 
                 if iteration % opt.opacity_reset_interval == 0 or (
                         dataset.white_background and iteration == opt.densify_from_iter):
-                    gaussians.reset_opacity()
+                    if iteration != opt.iterations:
+                        gaussians.reset_opacity()
 
             # Optimizer step
             if iteration < opt.iterations:

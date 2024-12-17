@@ -1,17 +1,17 @@
 import os
 import sys
-from io import StringIO
-
-import pyglet
-import win32ui
 import tkinter as tk
-from tkinter import filedialog
 from ctypes import POINTER, byref, cast, windll, c_void_p, c_wchar_p
 from ctypes.wintypes import SIZE, UINT, HANDLE, HBITMAP
-from comtypes import GUID, IUnknown, COMMETHOD, HRESULT
+from io import StringIO
+from tkinter import filedialog
+
 import win32ui
 from PIL import Image
-from gui import global_var as g
+from comtypes import GUID, IUnknown, COMMETHOD, HRESULT
+
+from gui.global_app_state import g
+
 
 class OutputCapture:
     def __init__(self, target_list):
@@ -39,7 +39,7 @@ class OutputCapture:
         sys.stdout = self.old_stdout
 
 
-def open_file_dialog(initial_dir = None):
+def open_file_dialog(initial_dir=None):
     if initial_dir is None:
         initial_dir = g.mLastFileDir
     dlg = win32ui.CreateFileDialog(1)  # 参数 1 表示打开文件对话框
@@ -99,5 +99,32 @@ def get_file_thumbnail(filename, icon_size) -> Image:
     return pil_image
 
 
+import platform
+import subprocess
+
+
+def find_colmap_executable() -> str:
+    if platform.system() == 'Windows':
+        try:
+            result = subprocess.run(["where", "colmap"], capture_output=True, text=True)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                return result.stderr.strip()
+        except FileNotFoundError:
+            return "Error: 'where' command not found"
+    elif platform.system() == 'Linux':
+        try:
+            result = subprocess.run(["which", "colmap"], capture_output=True, text=True)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                return result.stderr.strip()
+        except FileNotFoundError:
+            return "Error: 'which' command not found"
+    else:
+        return "Error: Unsupported platform"
+
+
 if __name__ == '__main__':
-    pass
+    print(find_colmap_executable())

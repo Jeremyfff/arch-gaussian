@@ -1,7 +1,7 @@
 import imgui
 
-from gui import components as c
-from gui import global_var as g
+from gui.components import c
+from gui.global_app_state import g
 from gui.contents.pages.base_page import BasePage
 from gui.contents.pages.full_page import FullPage
 from gui.modules.cell_module import CellModule
@@ -28,11 +28,11 @@ class Train3DGSMainPage(BasePage):
         with imgui.font(g.mFontBold):
             imgui.text('TRAIN 3D GAUSSIAN')
         if c.icon_text_button('rocket-2-fill', 'full training'):
-            cls.page_group.switch_page_obj(FullTrainingPage)
+            cls.parent_page_group.switch_page_obj(FullTrainingPage)
         if c.icon_text_button('meteor-line', 'basic training'):
-            cls.page_group.switch_page_obj(BasicTrainingPage)
+            cls.parent_page_group.switch_page_obj(BasicTrainingPage)
         if c.icon_text_button('menu-line', 'gaussian viewer'):
-            cls.page_group.switch_page_obj(SimpleViewerPage)
+            cls.parent_page_group.switch_page_obj(SimpleViewerPage)
 
 
 class FullTrainingPage(FullPage):
