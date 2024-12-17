@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from scene import Scene, GaussianModel
 from scene.cameras import MiniCam
-from gaussian_renderer import render
+from gaussian_renderer.default_renderer import render
 from utils.arg_utils import parse_args
 import numpy as np
 import dearpygui.dearpygui as dpg

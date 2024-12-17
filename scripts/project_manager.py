@@ -6,7 +6,7 @@ import pickle
 from enum import Enum
 from typing import Optional
 
-from scripts import global_info
+from gui import global_info
 
 
 # 所有与项目相关的信息都储存在这里
@@ -187,6 +187,15 @@ class ProjectManager:
     curr_project: Project = None
 
     @classmethod
+    def p_init(cls):
+        pass
+
+    @classmethod
+    def p_update(cls):
+        if cls.curr_project is not None:
+            cls.curr_project.p_update()
+
+    @classmethod
     def get_curr_project_name(cls):
         if cls.curr_project is None:
             return 'no project'
@@ -216,17 +225,18 @@ class ProjectManager:
         try:
             from gui.modules import EventModule
             EventModule.on_project_change()
-            from gui import  global_userinfo
-            recent_projects_names = global_userinfo.get_user_data("recent_project_names")
-            recent_project_paths = global_userinfo.get_user_data("recent_project_paths")
+            from gui.user_data import user_data, user_settings
+            recent_projects_names = user_data.recent_project_names
+            recent_project_paths = user_data.recent_project_paths
             if project_name in recent_projects_names:
                 recent_projects_names.remove(project_name)
             if project_root in recent_project_paths:
                 recent_project_paths.remove(project_root)
             recent_projects_names.append(project_name)
             recent_project_paths.append(project_root)
-            global_userinfo.set_user_data("recent_project_names", recent_projects_names)
-            global_userinfo.set_user_data("recent_project_paths", recent_project_paths)
+            user_data.recent_project_names = recent_projects_names
+            user_data.recent_project_paths = recent_project_paths
+
         except Exception as e:
             _ = e
             pass
@@ -265,17 +275,17 @@ class ProjectManager:
         try:
             from gui.modules import EventModule
             EventModule.on_project_change()
-            from gui import global_userinfo
-            recent_projects_names = global_userinfo.get_user_data("recent_project_names")
-            recent_project_paths = global_userinfo.get_user_data("recent_project_paths")
+            from gui.user_data import user_data, user_settings
+            recent_projects_names = user_data.recent_project_names
+            recent_project_paths = user_data.recent_project_paths
             if project.project_name in recent_projects_names:
                 recent_projects_names.remove(project.project_name)
             if project.project_root in recent_project_paths:
                 recent_project_paths.remove(project.project_root)
             recent_projects_names.append(project.project_name)
             recent_project_paths.append(project.project_root)
-            global_userinfo.set_user_data("recent_project_names", recent_projects_names)
-            global_userinfo.set_user_data("recent_project_paths", recent_project_paths)
+            user_data.recent_project_names = recent_projects_names
+            user_data.recent_project_paths = recent_project_paths
         except Exception as e:
             _ = e
             pass
